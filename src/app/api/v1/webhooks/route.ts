@@ -30,6 +30,11 @@ export async function GET(req: NextRequest) {
       ep.url,
       ep.subscribed_events,
       ep.is_active,
+      ep.status,
+      ep.health_score,
+      ep.consecutive_failures,
+      ep.paused_at,
+      ep.paused_reason,
       ep.created_at,
       COUNT(d.id)::int AS deliveries_24h,
       COUNT(d.id) FILTER (WHERE d.state = 'DELIVERED')::int AS successful_24h
@@ -38,7 +43,7 @@ export async function GET(req: NextRequest) {
       ON d.endpoint_id = ep.id
       AND d.created_at >= NOW() - INTERVAL '24 hours'
     WHERE ep.org_id = $1
-    GROUP BY ep.id, ep.url, ep.subscribed_events, ep.is_active, ep.created_at
+    GROUP BY ep.id, ep.url, ep.subscribed_events, ep.is_active, ep.status, ep.health_score, ep.consecutive_failures, ep.paused_at, ep.paused_reason, ep.created_at
     ORDER BY ep.created_at DESC;
   `;
 
@@ -54,6 +59,11 @@ export async function GET(req: NextRequest) {
         url: ep.url,
         subscribed_events: ep.subscribed_events,
         is_active: ep.is_active,
+        status: ep.status || (ep.is_active ? "ACTIVE" : "DISABLED"),
+        health_score: ep.health_score ?? rate,
+        consecutive_failures: ep.consecutive_failures ?? 0,
+        paused_at: ep.paused_at ? ep.paused_at.toISOString() : null,
+        paused_reason: ep.paused_reason || null,
         signing_secret_masked: "whsec_••••••••••••",
         deliveries_24h: total,
         success_rate_24h: rate,
@@ -61,7 +71,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ endpoints });
+    return NextResponse.json({ data: endpoints, endpoints });
   } catch (err) {
     logger.error({ err, orgId: auth.orgId }, "Failed to fetch webhook endpoints");
     return NextResponse.json({ error: "Failed to fetch webhooks" }, { status: 500 });

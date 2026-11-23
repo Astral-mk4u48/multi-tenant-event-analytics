@@ -29,6 +29,11 @@ interface WebhookEndpoint {
   description: string | null;
   events: string[];
   enabled: boolean;
+  status: "ACTIVE" | "PAUSED" | "DISABLED";
+  health_score: number;
+  consecutive_failures: number;
+  paused_at: string | null;
+  paused_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +65,7 @@ export default function WebhooksPage() {
   const [newDescription, setNewDescription] = useState("");
   const [createError, setCreateError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resumingId, setResumingId] = useState<string | null>(null);
 
   // Secret reveal state: map of endpointId -> { secret: string, expiresAt: number }
   const [revealedSecrets, setRevealedSecrets] = useState<Record<string, { secret: string; countdown: number }>>({});
@@ -259,6 +265,23 @@ export default function WebhooksPage() {
     }
   };
 
+  // Resume Endpoint (Circuit Breaker Reset)
+  const handleResumeEndpoint = async (endpointId: string) => {
+    try {
+      setResumingId(endpointId);
+      const res = await fetch(`/api/v1/webhooks/${endpointId}/resume`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        await fetchEndpoints();
+      }
+    } catch (err) {
+      console.error("Failed to resume endpoint", err);
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   // Replay single delivery
   const handleReplay = async (deliveryId: string) => {
     try {
@@ -328,13 +351,22 @@ export default function WebhooksPage() {
                   className="bg-surface border border-hairline-subtle p-5 flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
-                    {/* Header Row: URL & Toggle */}
+                    {/* Header Row: URL, Health Score Badge & Toggle */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="mono-data font-semibold text-ink truncate block">
                             {ep.url}
                           </span>
+                          {ep.status === "PAUSED" ? (
+                            <Badge variant="crimson">CIRCUIT OPEN</Badge>
+                          ) : (ep.health_score ?? 100) >= 95 ? (
+                            <Badge variant="emerald">{Number(ep.health_score ?? 100).toFixed(0)}% HEALTH</Badge>
+                          ) : (ep.health_score ?? 100) >= 70 ? (
+                            <Badge variant="amber">{Number(ep.health_score).toFixed(0)}% HEALTH</Badge>
+                          ) : (
+                            <Badge variant="crimson">{Number(ep.health_score).toFixed(0)}% DEGRADED</Badge>
+                          )}
                         </div>
                         {ep.description && (
                           <p className="type-micro text-ink-3 mt-0.5 truncate">
@@ -359,6 +391,36 @@ export default function WebhooksPage() {
                         />
                       </button>
                     </div>
+
+                    {/* Circuit Breaker Alert Banner */}
+                    {ep.status === "PAUSED" && (
+                      <div className="p-3 bg-inset border border-crimson/40 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 text-crimson font-medium type-micro">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>CIRCUIT OPEN (AUTO-PAUSED)</span>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={resumingId === ep.id}
+                            onClick={() => handleResumeEndpoint(ep.id)}
+                            className="flex items-center gap-1 text-[11px] py-0.5 px-2 h-6"
+                          >
+                            <RotateCw className={`w-3 h-3 ${resumingId === ep.id ? "animate-spin" : ""}`} />
+                            <span>{resumingId === ep.id ? "Resuming..." : "Resume Endpoint"}</span>
+                          </Button>
+                        </div>
+                        <p className="type-micro text-ink-2">
+                          {ep.paused_reason || "Triggered due to sustained consecutive delivery failures."}
+                        </p>
+                        {ep.paused_at && (
+                          <div className="type-micro text-ink-3 mono-data text-[10px]">
+                            Paused at {new Date(ep.paused_at).toISOString().replace("T", " ").substring(0, 19)} UTC
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Subscribed Events Badges */}
                     <div className="flex items-center flex-wrap gap-1.5">

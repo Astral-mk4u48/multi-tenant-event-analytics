@@ -227,7 +227,7 @@ export class IngestBatchWorker {
     const query = `
       SELECT id, url, subscribed_events, signing_secret
       FROM webhook_endpoints
-      WHERE org_id = $1 AND is_active = true
+      WHERE org_id = $1 AND is_active = true AND status = 'ACTIVE'
     `;
     const res = await migrationPool.query(query, [orgId]);
     const endpoints = res.rows as CachedEndpoint[];

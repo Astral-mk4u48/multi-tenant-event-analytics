@@ -29,6 +29,11 @@ export const webhookAttemptTriggerEnum = pgEnum("webhook_attempt_trigger_enum", 
   "auto",
   "manual",
 ]);
+export const webhookEndpointStatusEnum = pgEnum("webhook_endpoint_status_enum", [
+  "ACTIVE",
+  "PAUSED",
+  "DISABLED",
+]);
 
 // 1. Organizations
 export const organizations = pgTable(
@@ -152,6 +157,11 @@ export const webhookEndpoints = pgTable(
     subscribedEvents: text("subscribed_events").array().notNull(),
     signingSecret: text("signing_secret").notNull(), // AES-256-GCM encrypted
     isActive: boolean("is_active").notNull().default(true),
+    status: webhookEndpointStatusEnum("status").notNull().default("ACTIVE"),
+    healthScore: real("health_score").notNull().default(100.0),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    pausedReason: text("paused_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

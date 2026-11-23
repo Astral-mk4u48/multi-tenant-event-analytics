@@ -29,6 +29,12 @@ EXCEPTION
   WHEN duplicate_object THEN null;
 END $$;
 
+DO $$ BEGIN
+  CREATE TYPE webhook_endpoint_status_enum AS ENUM ('ACTIVE', 'PAUSED', 'DISABLED');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
 -- 1. Organizations
 CREATE TABLE IF NOT EXISTS organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -103,6 +109,11 @@ CREATE TABLE IF NOT EXISTS webhook_endpoints (
   subscribed_events TEXT[] NOT NULL,
   signing_secret TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT true,
+  status webhook_endpoint_status_enum NOT NULL DEFAULT 'ACTIVE',
+  health_score REAL NOT NULL DEFAULT 100.0,
+  consecutive_failures INT NOT NULL DEFAULT 0,
+  paused_at TIMESTAMPTZ,
+  paused_reason TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

@@ -1,56 +1,146 @@
 import { Worker, Job } from "bullmq";
-import { pool, migrationPool } from "../db";
 import { redis } from "../server/redis";
+import { migrationPool } from "../db";
 import { logger } from "../server/logger";
 import { env } from "../server/env";
-import { decryptSecret } from "../server/crypto";
-import {
-  WEBHOOKS_QUEUE_NAME,
-  WebhookDeliverJobData,
-  webhooksDeliverQueue,
-} from "../server/queues";
 import { sendOutboundWebhook } from "../server/webhooks/sender";
+import { decryptSecret } from "../server/crypto";
+import { webhooksDeliverQueue, WebhookDeliverJobData } from "../server/queues";
+import { fileURLToPath } from "url";
+import path from "path";
 
-// Exponential Backoff Schedule per Section 4.4 of the specification:
-// Attempt 1: 0s
-// Attempt 2: 10s ±15%
-// Attempt 3: 60s ±15%
-// Attempt 4: 300s ±15%
-// Attempt 5: 1800s ±15%
-const BASE_DELAYS_MS: Record<number, number> = {
-  2: 10 * 1000,
-  3: 60 * 1000,
-  4: 300 * 1000,
-  5: 1800 * 1000,
-};
+export type { WebhookDeliverJobData };
 
-export function calculateRetryDelay(nextAttempt: number): number | null {
-  const base = BASE_DELAYS_MS[nextAttempt];
-  if (!base) return null;
+/**
+ * 5-step exponential backoff schedule: 0s, 10s, 60s, 300s, 1800s ±15% jitter
+ */
+export function calculateRetryDelay(attemptNumber: number): number | null {
+  if (attemptNumber > 5 || attemptNumber < 1) return null;
+  const baseDelaysMs = [0, 10000, 60000, 300000, 1800000];
+  const base = baseDelaysMs[attemptNumber - 1];
+
+  if (base === 0) return 0;
 
   // Apply ±15% jitter
-  const jitterFactor = 1 + (Math.random() * 0.3 - 0.15);
-  return Math.round(base * jitterFactor);
+  const jitterRange = base * 0.15;
+  const jitter = (Math.random() * 2 - 1) * jitterRange;
+  return Math.round(base + jitter);
+}
+
+/**
+ * Updates sliding-window health score and trips circuit breaker after 5 consecutive 5xx/timeout failures.
+ */
+export async function updateEndpointHealthAndCircuitBreaker(
+  endpointId: string,
+  orgId: string,
+  result: { statusCode: number | null; isTimeout: boolean }
+): Promise<{ status: "ACTIVE" | "PAUSED" | "DISABLED"; healthScore: number; consecutiveFailures: number }> {
+  const is5xxOrTimeout = result.isTimeout || (result.statusCode !== null && result.statusCode >= 500);
+  const is2xx = result.statusCode !== null && result.statusCode >= 200 && result.statusCode < 300;
+
+  // 1. Fetch current endpoint status
+  const curRes = await migrationPool.query(
+    "SELECT status, consecutive_failures, health_score FROM webhook_endpoints WHERE id = $1",
+    [endpointId]
+  );
+  if (curRes.rows.length === 0) {
+    return { status: "ACTIVE", healthScore: 100, consecutiveFailures: 0 };
+  }
+
+  const current = curRes.rows[0];
+  let consecutiveFailures = current.consecutive_failures || 0;
+  let status: "ACTIVE" | "PAUSED" | "DISABLED" = current.status || "ACTIVE";
+  let pausedAt: Date | null = null;
+  let pausedReason: string | null = null;
+
+  if (is2xx) {
+    consecutiveFailures = 0;
+  } else if (is5xxOrTimeout) {
+    consecutiveFailures += 1;
+  }
+
+  // 2. Compute sliding-window health score over the last 20 deliveries
+  const scoreRes = await migrationPool.query(
+    `SELECT
+       COUNT(*)::int as total,
+       COUNT(*) FILTER (WHERE state = 'DELIVERED')::int as successful
+     FROM (
+       SELECT state FROM webhook_deliveries
+       WHERE endpoint_id = $1
+       ORDER BY updated_at DESC
+       LIMIT 20
+     ) sub`,
+    [endpointId]
+  );
+
+  const total = scoreRes.rows[0]?.total || 0;
+  const successful = scoreRes.rows[0]?.successful || 0;
+  const healthScore =
+    total > 0
+      ? Math.round((successful / total) * 1000) / 10
+      : is2xx
+      ? 100.0
+      : is5xxOrTimeout
+      ? 0.0
+      : 50.0;
+
+  // 3. Trip Circuit Breaker after 5 consecutive failures
+  if (consecutiveFailures >= 5 && status !== "PAUSED" && status !== "DISABLED") {
+    status = "PAUSED";
+    pausedAt = new Date();
+    pausedReason = `Auto-paused: Circuit breaker tripped after ${consecutiveFailures} consecutive delivery failures (5xx/timeout).`;
+    logger.warn({ endpointId, orgId, consecutiveFailures }, "Circuit breaker tripped: endpoint auto-paused");
+
+    try {
+      await redis.del(`endpoints:active:{${orgId}}`);
+    } catch {
+      // Ignore cache invalidation error
+    }
+  }
+
+  // 4. Persist updated health metrics
+  if (status === "PAUSED" && pausedAt) {
+    await migrationPool.query(
+      `UPDATE webhook_endpoints
+       SET status = $1,
+           consecutive_failures = $2,
+           health_score = $3,
+           paused_at = $4,
+           paused_reason = $5
+       WHERE id = $6`,
+      [status, consecutiveFailures, healthScore, pausedAt, pausedReason, endpointId]
+    );
+  } else {
+    await migrationPool.query(
+      `UPDATE webhook_endpoints
+       SET consecutive_failures = $1,
+           health_score = $2
+       WHERE id = $3`,
+      [consecutiveFailures, healthScore, endpointId]
+    );
+  }
+
+  return { status, healthScore, consecutiveFailures };
 }
 
 export class WebhookDeliveryWorker {
-  public worker: Worker<WebhookDeliverJobData>;
-  private isShuttingDown = false;
+  private worker: Worker;
 
-  constructor(autoRegisterSignals = false) {
+  constructor(autoRegisterSignals = true) {
     this.worker = new Worker<WebhookDeliverJobData>(
-      WEBHOOKS_QUEUE_NAME,
+      "webhooks_deliver",
       async (job: Job<WebhookDeliverJobData>) => {
         await this.handleJob(job.data);
       },
       {
-        connection: {
-          url: env.REDIS_URL,
-          maxRetriesPerRequest: null,
-        },
-        concurrency: 25,
+        connection: redis,
+        concurrency: 10,
       }
     );
+
+    this.worker.on("failed", (job, err) => {
+      logger.error({ err, jobId: job?.id }, "Webhook delivery job processing failed");
+    });
 
     if (autoRegisterSignals) {
       this.registerSignalHandlers();
@@ -61,6 +151,7 @@ export class WebhookDeliveryWorker {
     const {
       deliveryId,
       orgId,
+      endpointId,
       endpointUrl,
       eventName,
       eventId,
@@ -70,6 +161,32 @@ export class WebhookDeliveryWorker {
       maxAttempts,
       trigger,
     } = job;
+
+    // 0. Circuit Breaker Gate: If endpoint is paused or disabled, abort delivery
+    if (endpointId) {
+      const epCheck = await migrationPool.query(
+        "SELECT status, paused_reason FROM webhook_endpoints WHERE id = $1",
+        [endpointId]
+      );
+      if (epCheck.rows.length > 0) {
+        const ep = epCheck.rows[0];
+        if (ep.status === "PAUSED" || ep.status === "DISABLED") {
+          logger.warn(
+            { deliveryId, endpointId, status: ep.status },
+            `Skipping webhook delivery: endpoint is ${ep.status}`
+          );
+
+          await migrationPool.query(
+            `UPDATE webhook_deliveries
+             SET state = 'DLQ',
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [deliveryId]
+          );
+          return;
+        }
+      }
+    }
 
     // Decrypt signing secret if stored encrypted
     let plainSecret = signingSecret;
@@ -161,7 +278,7 @@ export class WebhookDeliveryWorker {
       deliveryId,
       orgId,
       eventId || null,
-      job.endpointId || null,
+      endpointId || null,
       eventName,
       endpointUrl,
       nextState,
@@ -185,7 +302,19 @@ export class WebhookDeliveryWorker {
       throw err;
     }
 
-    // 4. Handle State Transitions
+    // 4. Update endpoint health score and check circuit breaker
+    if (endpointId) {
+      try {
+        await updateEndpointHealthAndCircuitBreaker(endpointId, orgId, {
+          statusCode: result.statusCode,
+          isTimeout: result.isTimeout,
+        });
+      } catch (err) {
+        logger.error({ err, endpointId }, "Failed to update endpoint health and circuit breaker");
+      }
+    }
+
+    // 5. Handle State Transitions
     if (nextState === "RETRYING" && nextRetryDelayMs !== null) {
       logger.info(
         { deliveryId, attemptNumber, nextAttempt: attemptNumber + 1, delayMs: nextRetryDelayMs },
@@ -219,34 +348,31 @@ export class WebhookDeliveryWorker {
             orgId,
             eventName,
             endpointUrl,
-            status: result.statusCode,
-            isTimeout: result.isTimeout,
-            attempts: attemptNumber,
-            timestamp: new Date().toISOString(),
+            error: result.error || `HTTP ${result.statusCode}`,
           })
         );
         await pipeline.exec();
       } catch (err) {
-        logger.warn({ err, orgId }, "Failed to publish DLQ metric to Redis");
+        logger.error({ err, deliveryId }, "Failed to update DLQ metrics");
       }
     }
   }
 
-  public async stop(): Promise<void> {
+  public async close(): Promise<void> {
     await this.worker.close();
+  }
+
+  public async stop(): Promise<void> {
+    await this.close();
   }
 
   private registerSignalHandlers() {
     const shutdown = async (signal: string) => {
-      if (this.isShuttingDown) return;
-      this.isShuttingDown = true;
       logger.info({ signal }, `Received ${signal}; shutting down WebhookDeliveryWorker...`);
-
       await this.worker.close();
-      if (!pool.ended) await pool.end();
-      if (!migrationPool.ended) await migrationPool.end();
-      redis.disconnect();
-
+      if (!migrationPool.ended) {
+        await migrationPool.end();
+      }
       logger.info("WebhookDeliveryWorker shutdown complete with code 0");
       process.exit(0);
     };
@@ -256,12 +382,8 @@ export class WebhookDeliveryWorker {
   }
 }
 
-import { fileURLToPath } from "url";
-import path from "path";
-
 // Standalone execution entrypoint
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   logger.info("Starting standalone BullMQ WebhookDeliveryWorker process...");
   new WebhookDeliveryWorker(true);
 }
-

@@ -11,6 +11,8 @@ const patchEndpointSchema = z.object({
   url: z.string().url().optional(),
   subscribed_events: z.array(z.string()).min(1).optional(),
   is_active: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+  status: z.enum(["ACTIVE", "PAUSED", "DISABLED"]).optional(),
 });
 
 /**
@@ -60,10 +62,24 @@ export async function PATCH(
     valIdx++;
   }
 
-  if (parsed.data.is_active !== undefined) {
+  const isActive = parsed.data.is_active !== undefined ? parsed.data.is_active : parsed.data.enabled;
+  if (isActive !== undefined) {
     updates.push(`is_active = $${valIdx}`);
-    values.push(parsed.data.is_active);
+    values.push(isActive);
     valIdx++;
+
+    updates.push(`status = $${valIdx}`);
+    values.push(isActive ? "ACTIVE" : "DISABLED");
+    valIdx++;
+  } else if (parsed.data.status !== undefined) {
+    updates.push(`status = $${valIdx}`);
+    values.push(parsed.data.status);
+    valIdx++;
+    if (parsed.data.status === "DISABLED") {
+      updates.push(`is_active = false`);
+    } else if (parsed.data.status === "ACTIVE") {
+      updates.push(`is_active = true`);
+    }
   }
 
   if (updates.length === 0) {
