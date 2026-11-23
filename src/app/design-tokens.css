@@ -1,0 +1,340 @@
+/* ==========================================================================
+   design-tokens.css  —  Tailwind v4 CSS-first token layer
+   Product: Multi-Tenant Event Analytics & Webhook Platform (Obsidian Dark)
+   Layers: 1 Primitives/Surfaces -> 2 Borders -> 3 Text -> 4 Accent
+           -> 5 Status -> 6 JSON syntax -> type, radius, spacing, motion
+   Usage: import once in the app's global stylesheet (app/globals.css).
+   ========================================================================== */
+
+@import "tailwindcss";
+
+@theme {
+  /* ---- Reset Tailwind defaults that violate the visual guardrails ------- */
+  --color-*: initial;          /* removes default purple/indigo/violet/cyan etc. */
+  --radius-*: initial;         /* removes 2xl / 3xl / full bubbly radii          */
+  --shadow-*: initial;         /* removes shadow-xl / 2xl; elevation = luminance */
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --blur-*: initial;           /* removes blur + backdrop-blur scale             */
+  --ease-*: initial;
+
+  /* ---- Base ------------------------------------------------------------- */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* ---- Layer 1: Surface luminance hierarchy ----------------------------- */
+  --color-canvas:   #09090B;   /* --bg-canvas   main app viewport            */
+  --color-surface:  #0F0F12;   /* --bg-surface  sidebar, cards, tables, drawer */
+  --color-elevated: #16161A;   /* --bg-elevated row hover, menus, tooltips   */
+  --color-inset:    #050507;   /* --bg-inset    JSON viewer, tail, key reveal */
+
+  /* ---- Layer 2: Hairline borders (1px solid only) ----------------------- */
+  --color-hairline-subtle:  #1E1E24;  /* card outlines, row dividers         */
+  --color-hairline:         #2A2A32;  /* inputs, secondary btn, drawer, modal */
+  --color-hairline-strong:  #3F3F4A;  /* hovered / active interactive borders */
+
+  /* ---- Layer 3: Text hierarchy ------------------------------------------ */
+  --color-ink:        #F4F4F5;  /* --text-primary                            */
+  --color-ink-2:      #A1A1AA;  /* --text-secondary                          */
+  --color-ink-3:      #63636E;  /* --text-muted (decorative / header labels) */
+  --color-ink-3-aa:   #80808C;  /* OPTIONAL: muted text that carries data, AA on surfaces */
+
+  /* ---- Layer 4: Crimson accent (max 5-10% of viewport) ------------------ */
+  --color-accent:         #E11D48;
+  --color-accent-hover:   #BE123C;
+  --color-accent-subtle:  rgb(225 29 72 / 0.12);
+  --color-accent-border:  rgb(225 29 72 / 0.35);
+
+  /* ---- Layer 5: Semantic HTTP / webhook status -------------------------- */
+  --color-status-success: #10B981;  /* 2xx, Healthy                          */
+  --color-status-warning: #F59E0B;  /* 3xx, Retrying, 429 Rate-Limited       */
+  --color-status-error:   #EF4444;  /* 4xx, 5xx, TIMEOUT, DLQ                */
+  --color-status-neutral: #71717A;  /* Pending, Disabled                     */
+  --color-status-neutral-text: #A1A1AA; /* AA-safe text for neutral badges   */
+
+  /* ---- Layer 6: JSON syntax (inside --color-inset) ---------------------- */
+  --color-json-key:    #A1A1AA;
+  --color-json-string: #E4E4E7;
+  --color-json-number: #E11D48;   /* numbers and booleans */
+  --color-json-punct:  #63636E;   /* null, braces, commas */
+
+  /* ---- Typography ------------------------------------------------------- */
+  --font-sans: var(--font-geist-sans), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+
+  --text-page-title: 18px;
+  --text-page-title--line-height: 24px;
+  --text-page-title--letter-spacing: -0.02em;
+  --text-section: 13px;
+  --text-section--line-height: 20px;
+  --text-kpi: 26px;
+  --text-kpi--line-height: 32px;
+  --text-kpi--letter-spacing: -0.03em;
+  --text-body: 13px;
+  --text-body--line-height: 20px;
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+  --text-micro--letter-spacing: 0.06em;
+  --text-code: 12px;
+  --text-code--line-height: 18px;
+
+  /* ---- Radii: 4px controls, 6px containers. Nothing larger. ------------- */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;   /* buttons, inputs, badges, chips */
+  --radius-md: 6px;   /* cards, modals, drawers (max)   */
+
+  /* ---- Spacing (4px base) and fixed shell dimensions -------------------- */
+  --spacing: 4px;
+  --spacing-sidebar:     232px;
+  --spacing-topbar:      48px;
+  --spacing-thead:       36px;
+  --spacing-row:         40px;
+  --spacing-control:     32px;
+  --spacing-control-sm:  28px;
+  --spacing-dot:         6px;
+  --container-drawer:    540px;
+  --container-modal:     480px;
+  --container-content:   1440px;
+
+  /* ---- Motion: mechanical, 150ms ease-out, no springs ------------------- */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  --animate-pulse-dot: pulse-dot 2s linear infinite;
+  --animate-skeleton: skeleton 1.4s linear infinite;
+  --animate-spin-linear: spin 800ms linear infinite;
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+  }
+  @keyframes skeleton {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+/* ==========================================================================
+   Semantic CSS variables (spec names) for non-Tailwind consumers:
+   Recharts props, inline SVG, third-party widgets. Same values, one source.
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  --bg-canvas:   var(--color-canvas);
+  --bg-surface:  var(--color-surface);
+  --bg-elevated: var(--color-elevated);
+  --bg-inset:    var(--color-inset);
+
+  --border-subtle:  var(--color-hairline-subtle);
+  --border-default: var(--color-hairline);
+  --border-strong:  var(--color-hairline-strong);
+
+  --text-primary:   var(--color-ink);
+  --text-secondary: var(--color-ink-2);
+  --text-muted:     var(--color-ink-3);
+
+  --accent-primary: var(--color-accent);
+  --accent-hover:   var(--color-accent-hover);
+  --accent-subtle:  var(--color-accent-subtle);
+  --accent-border:  var(--color-accent-border);
+
+  --status-success: var(--color-status-success);
+  --status-warning: var(--color-status-warning);
+  --status-error:   var(--color-status-error);
+  --status-neutral: var(--color-status-neutral);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-sticky-header: 10;
+  --z-shell: 20;
+  --z-dropdown: 30;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+}
+
+@layer base {
+  html {
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body { background: var(--bg-canvas); }
+  ::selection { background: var(--accent-subtle); color: var(--text-primary); }
+
+  /* Focus: 1px crisp ring, no fuzzy glow */
+  :focus-visible {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: 1px;
+  }
+  button, a, input, select, textarea, [role="button"], [role="tab"] {
+    transition-property: background-color, border-color, color, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+  button:disabled, [aria-disabled="true"] { cursor: not-allowed; opacity: 0.45; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+/* Mandatory for every quantitative / machine-generated value */
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+@utility mono-data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Bare `rounded` = 4px */
+@utility rounded {
+  border-radius: 4px;
+}
+
+/* Hairline borders (always 1px solid) */
+@utility hairline {
+  border: 1px solid var(--border-subtle);
+}
+@utility hairline-default {
+  border: 1px solid var(--border-default);
+}
+@utility hairline-b { border-bottom: 1px solid var(--border-subtle); }
+@utility hairline-t { border-top: 1px solid var(--border-subtle); }
+@utility hairline-r { border-right: 1px solid var(--border-subtle); }
+@utility hairline-l { border-left: 1px solid var(--border-default); }
+
+/* Composite type styles from the exact scale */
+@utility type-page-title {
+  font-size: 18px; line-height: 24px; font-weight: 600;
+  letter-spacing: -0.02em; color: var(--text-primary);
+}
+@utility type-section {
+  font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text-primary);
+}
+@utility type-kpi {
+  font-family: var(--font-mono); font-size: 26px; line-height: 32px;
+  font-weight: 600; letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; color: var(--text-primary);
+}
+@utility type-body {
+  font-size: 13px; line-height: 20px; font-weight: 400;
+}
+@utility type-micro {
+  font-size: 11px; line-height: 16px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
+}
+@utility type-code {
+  font-family: var(--font-mono); font-size: 12px; line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Z-index scale */
+@utility z-sticky-header { z-index: 10; }
+@utility z-shell         { z-index: 20; }
+@utility z-dropdown      { z-index: 30; }
+@utility z-drawer        { z-index: 40; }
+@utility z-modal         { z-index: 50; }
+@utility z-toast         { z-index: 60; }
+
+/* Dark scrollbars (6px track, square-ish thumb) */
+@utility scrollbar-dark {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  &::-webkit-scrollbar { width: 6px; height: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 2px;
+  }
+  &::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+  &::-webkit-scrollbar-corner { background: transparent; }
+}
+
+/* Skeleton loader block */
+@utility skeleton {
+  background: linear-gradient(90deg,
+    var(--bg-elevated) 0%, #1E1E24 50%, var(--bg-elevated) 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-skeleton);
+  border-radius: 2px;
+  color: transparent;
+}
+
+/* Live status dot (exactly 6px) */
+@utility status-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 9999px;
+  background: var(--status-neutral); flex: none;
+}
+@utility status-dot-live {
+  display: inline-block; width: 6px; height: 6px; border-radius: 9999px;
+  background: var(--status-success); flex: none;
+  animation: var(--animate-pulse-dot);
+}
+
+/* Status badge: 10% fill, 25% border, bright text. Square 4px radius. */
+@utility badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 6px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 16px;
+  font-weight: 500; letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+  border: 1px solid transparent; white-space: nowrap;
+}
+@utility badge-success {
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--status-success) 25%, transparent);
+  color: var(--status-success);
+}
+@utility badge-warning {
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--status-warning) 25%, transparent);
+  color: var(--status-warning);
+}
+@utility badge-error {
+  background: color-mix(in srgb, var(--status-error) 10%, transparent);
+  border-color: color-mix(in srgb, var(--status-error) 25%, transparent);
+  color: var(--status-error);
+}
+@utility badge-neutral {
+  background: color-mix(in srgb, var(--status-neutral) 10%, transparent);
+  border-color: color-mix(in srgb, var(--status-neutral) 25%, transparent);
+  color: var(--color-status-neutral-text);
+}
+@utility badge-accent {
+  background: var(--accent-subtle);
+  border-color: var(--accent-border);
+  color: #FB7185;
+}
+
+/* Keyboard hint chip */
+@utility kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 4px;
+  background: var(--bg-elevated); border: 1px solid var(--border-default);
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1;
+  color: var(--text-secondary);
+}
+
+/* Interactive row hover/selected states for tables */
+@utility row-interactive {
+  cursor: pointer;
+  &:hover { background: var(--bg-elevated); }
+  &[aria-selected="true"] { background: var(--accent-subtle); }
+}

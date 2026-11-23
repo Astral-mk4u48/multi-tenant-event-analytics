@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: analytics-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d analytics"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: analytics-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: analytics-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://app_user:pass@postgres:5432/analytics
+      - DATABASE_MIGRATION_URL=postgres://postgres:pass@postgres:5432/analytics
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - AUTH_SECRET=dGhpc2lzYXNlY3JldGtleWZvcnNlc3Npb25zb2ZhdGxlYXN0MzJieXRlcw==
+      - INGEST_BATCH_SIZE=100
+      - WEBHOOK_TIMEOUT_MS=5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: analytics-worker-ingest
+    restart: unless-stopped
+    command: ["node", "dist/workers/ingest-worker.js"]
+    environment:
+      - DATABASE_URL=postgres://app_user:pass@postgres:5432/analytics
+      - REDIS_URL=redis://redis:6379
+      - INGEST_BATCH_SIZE=100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: analytics-worker-webhook
+    restart: unless-stopped
+    command: ["node", "dist/workers/webhook-worker.js"]
+    environment:
+      - DATABASE_URL=postgres://app_user:pass@postgres:5432/analytics
+      - REDIS_URL=redis://redis:6379
+      - ENCRYPTION_KEY_HEX=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - WEBHOOK_TIMEOUT_MS=5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
