@@ -5,6 +5,10 @@ import { verifyApiKey } from "@/server/crypto";
 import { checkRateLimit, recordRateLimitDrop } from "@/server/ratelimit/limiter";
 import { eventsIngestQueue, IngestJobData } from "@/server/queues";
 import { logger } from "@/server/logger";
+import { resolveAuth } from "@/server/auth/guard";
+import { withTenant } from "@/db";
+import { events } from "@/db/schema";
+import { desc, eq, like, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +24,41 @@ const singleEventSchema = z.object({
 });
 
 const MAX_PAYLOAD_BYTES = 256 * 1024; // 256 KB
+
+export async function GET(req: NextRequest) {
+  const auth = await resolveAuth(req);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const url = new URL(req.url);
+  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
+  const search = url.searchParams.get("search");
+
+  return withTenant(auth.orgId, async (tx) => {
+    let query = tx
+      .select({
+        id: events.id,
+        eventName: events.eventName,
+        idempotencyKey: events.idempotencyKey,
+        payload: events.payload,
+        ingestLatencyMs: events.ingestLatencyMs,
+        statusCode: events.statusCode,
+        createdAt: events.createdAt,
+      })
+      .from(events)
+      .where(
+        search
+          ? and(eq(events.orgId, auth.orgId), like(events.eventName, `%${search}%`))
+          : eq(events.orgId, auth.orgId)
+      )
+      .orderBy(desc(events.createdAt))
+      .limit(limit);
+
+    const rows = await query;
+    return NextResponse.json({ data: rows });
+  });
+}
 
 export async function POST(req: NextRequest) {
   const startTime = performance.now();

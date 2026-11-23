@@ -3,8 +3,10 @@ import path from "path";
 import { migrationPool } from "./index";
 import { logger } from "../server/logger";
 
+import { fileURLToPath } from "url";
+
 export async function runMigrations() {
-  const sqlPath = path.join(__dirname, "migrations", "0000_init.sql");
+  const sqlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "migrations", "0000_init.sql");
   logger.info({ sqlPath }, "Reading migration file");
   const sqlContent = fs.readFileSync(sqlPath, "utf-8");
 
@@ -24,7 +26,7 @@ export async function runMigrations() {
   }
 }
 
-if (require.main === module) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   runMigrations()
     .then(() => {
       migrationPool.end();
