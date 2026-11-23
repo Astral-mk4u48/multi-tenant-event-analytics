@@ -170,33 +170,94 @@ export async function GET(req: NextRequest) {
         });
       }
 
+      const formattedSeries = series.map((s) => ({
+        ...s,
+        rate_limited: s.rateLimited,
+      }));
+
+      const formattedTopEventTypes = topEventTypes.map((t) => ({
+        name: t.name,
+        event_name: t.name,
+        count: t.count,
+        percent: t.percent,
+        percentage: t.percent,
+      }));
+
       return NextResponse.json({
         range: rangeParam,
         updated_at_utc: new Date().toISOString(),
         kpis: {
           eventsIngested: {
             value: kpiData.current_ingested,
+            current: kpiData.current_ingested,
+            previous: kpiData.prev_ingested,
             deltaPercent: ingestedDelta,
+            delta_pct: ingestedDelta,
+            deltaLabel: `${ingestedDelta >= 0 ? "+" : ""}${ingestedDelta}% vs prev ${rangeParam}`,
+          },
+          events_ingested: {
+            value: kpiData.current_ingested,
+            current: kpiData.current_ingested,
+            previous: kpiData.prev_ingested,
+            deltaPercent: ingestedDelta,
+            delta_pct: ingestedDelta,
             deltaLabel: `${ingestedDelta >= 0 ? "+" : ""}${ingestedDelta}% vs prev ${rangeParam}`,
           },
           deliverySuccessRate: {
             value: currentRate,
+            current: currentRate,
+            previous: prevRate,
             delta: rateDelta,
+            deltaPercent: rateDelta,
+            delta_pct: rateDelta,
+            deltaLabel: `${rateDelta >= 0 ? "+" : ""}${rateDelta}% vs prev ${rangeParam}`,
+          },
+          delivery_success_rate: {
+            value: currentRate,
+            current: currentRate,
+            previous: prevRate,
+            delta: rateDelta,
+            deltaPercent: rateDelta,
+            delta_pct: rateDelta,
             deltaLabel: `${rateDelta >= 0 ? "+" : ""}${rateDelta}% vs prev ${rangeParam}`,
           },
           p99LatencyMs: {
             value: parseFloat(kpiData.current_p99) || 0,
+            current: parseFloat(kpiData.current_p99) || 0,
+            previous: parseFloat(kpiData.prev_p99) || 0,
             deltaMs: p99Delta,
+            delta_pct: p99Delta,
+            deltaLabel: `${p99Delta >= 0 ? "+" : ""}${p99Delta}ms vs prev ${rangeParam}`,
+          },
+          p99_latency_ms: {
+            value: parseFloat(kpiData.current_p99) || 0,
+            current: parseFloat(kpiData.current_p99) || 0,
+            previous: parseFloat(kpiData.prev_p99) || 0,
+            deltaMs: p99Delta,
+            delta_pct: p99Delta,
             deltaLabel: `${p99Delta >= 0 ? "+" : ""}${p99Delta}ms vs prev ${rangeParam}`,
           },
           dlqCount: {
             value: dlvData.current_dlq,
+            current: dlvData.current_dlq,
+            previous: dlvData.prev_dlq,
             delta: dlqDelta,
+            delta_pct: dlqDelta,
+            deltaLabel: `${dlqDelta >= 0 ? "+" : ""}${dlqDelta} vs prev ${rangeParam}`,
+          },
+          dlq_count: {
+            value: dlvData.current_dlq,
+            current: dlvData.current_dlq,
+            previous: dlvData.prev_dlq,
+            delta: dlqDelta,
+            delta_pct: dlqDelta,
             deltaLabel: `${dlqDelta >= 0 ? "+" : ""}${dlqDelta} vs prev ${rangeParam}`,
           },
         },
-        volumeSeries: series,
-        topEventTypes,
+        volumeSeries: formattedSeries,
+        volume_series: formattedSeries,
+        topEventTypes: formattedTopEventTypes,
+        top_event_types: formattedTopEventTypes,
       });
     } finally {
       client.release();
