@@ -162,6 +162,10 @@ export const webhookEndpoints = pgTable(
     consecutiveFailures: integer("consecutive_failures").notNull().default(0),
     pausedAt: timestamp("paused_at", { withTimezone: true }),
     pausedReason: text("paused_reason"),
+    mtlsEnabled: boolean("mtls_enabled").notNull().default(false),
+    tlsClientCert: text("tls_client_cert"),
+    tlsClientKey: text("tls_client_key"),
+    tlsCaCert: text("tls_ca_cert"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

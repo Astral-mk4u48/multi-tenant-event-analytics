@@ -13,6 +13,10 @@ const patchEndpointSchema = z.object({
   is_active: z.boolean().optional(),
   enabled: z.boolean().optional(),
   status: z.enum(["ACTIVE", "PAUSED", "DISABLED"]).optional(),
+  mtls_enabled: z.boolean().optional(),
+  tls_client_cert: z.string().optional(),
+  tls_client_key: z.string().optional(),
+  tls_ca_cert: z.string().optional(),
 });
 
 /**
@@ -80,6 +84,31 @@ export async function PATCH(
     } else if (parsed.data.status === "ACTIVE") {
       updates.push(`is_active = true`);
     }
+  }
+
+  if (parsed.data.mtls_enabled !== undefined) {
+    updates.push(`mtls_enabled = $${valIdx}`);
+    values.push(parsed.data.mtls_enabled);
+    valIdx++;
+  }
+
+  if (parsed.data.tls_client_cert !== undefined) {
+    updates.push(`tls_client_cert = $${valIdx}`);
+    values.push(parsed.data.tls_client_cert);
+    valIdx++;
+  }
+
+  if (parsed.data.tls_client_key !== undefined) {
+    const { encryptSecret } = await import("@/server/crypto");
+    updates.push(`tls_client_key = $${valIdx}`);
+    values.push(encryptSecret(parsed.data.tls_client_key));
+    valIdx++;
+  }
+
+  if (parsed.data.tls_ca_cert !== undefined) {
+    updates.push(`tls_ca_cert = $${valIdx}`);
+    values.push(parsed.data.tls_ca_cert);
+    valIdx++;
   }
 
   if (updates.length === 0) {

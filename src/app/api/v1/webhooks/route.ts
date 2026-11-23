@@ -11,7 +11,13 @@ export const dynamic = "force-dynamic";
 
 const createEndpointSchema = z.object({
   url: z.string().url("Must be a valid URL"),
-  subscribed_events: z.array(z.string()).min(1, "At least one subscribed event required"),
+  subscribed_events: z.array(z.string()).min(1, "At least one subscribed event required").optional(),
+  events: z.array(z.string()).min(1).optional(),
+  description: z.string().optional(),
+  mtls_enabled: z.boolean().optional(),
+  tls_client_cert: z.string().optional(),
+  tls_client_key: z.string().optional(),
+  tls_ca_cert: z.string().optional(),
 });
 
 /**
@@ -35,6 +41,9 @@ export async function GET(req: NextRequest) {
       ep.consecutive_failures,
       ep.paused_at,
       ep.paused_reason,
+      ep.mtls_enabled,
+      ep.tls_client_cert,
+      ep.tls_ca_cert,
       ep.created_at,
       COUNT(d.id)::int AS deliveries_24h,
       COUNT(d.id) FILTER (WHERE d.state = 'DELIVERED')::int AS successful_24h
@@ -43,7 +52,7 @@ export async function GET(req: NextRequest) {
       ON d.endpoint_id = ep.id
       AND d.created_at >= NOW() - INTERVAL '24 hours'
     WHERE ep.org_id = $1
-    GROUP BY ep.id, ep.url, ep.subscribed_events, ep.is_active, ep.status, ep.health_score, ep.consecutive_failures, ep.paused_at, ep.paused_reason, ep.created_at
+    GROUP BY ep.id, ep.url, ep.subscribed_events, ep.is_active, ep.status, ep.health_score, ep.consecutive_failures, ep.paused_at, ep.paused_reason, ep.mtls_enabled, ep.tls_client_cert, ep.tls_ca_cert, ep.created_at
     ORDER BY ep.created_at DESC;
   `;
 
@@ -65,6 +74,9 @@ export async function GET(req: NextRequest) {
         paused_at: ep.paused_at ? ep.paused_at.toISOString() : null,
         paused_reason: ep.paused_reason || null,
         signing_secret_masked: "whsec_••••••••••••",
+        mtls_enabled: ep.mtls_enabled ?? false,
+        has_client_cert: Boolean(ep.tls_client_cert),
+        has_ca_cert: Boolean(ep.tls_ca_cert),
         deliveries_24h: total,
         success_rate_24h: rate,
         created_at: ep.created_at.toISOString(),
@@ -111,18 +123,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { url, subscribed_events } = parsed.data;
+  const url = parsed.data.url;
+  const subscribedEvents = parsed.data.subscribed_events || parsed.data.events || ["*"];
+  const mtlsEnabled = parsed.data.mtls_enabled ?? false;
+
+  if (mtlsEnabled && !url.startsWith("https://")) {
+    return NextResponse.json(
+      { error: "mTLS requires an HTTPS URL" },
+      { status: 422 }
+    );
+  }
 
   // Generate 32-byte secret with base62 encoding: whsec_...
   const secretPart = toBase62(crypto.randomBytes(32));
   const rawSigningSecret = `whsec_${secretPart}`;
   const encryptedSecret = encryptSecret(rawSigningSecret);
+  const encryptedClientKey = parsed.data.tls_client_key ? encryptSecret(parsed.data.tls_client_key) : null;
   const endpointId = `ep_${Date.now().toString(36)}${crypto.randomBytes(4).toString("hex")}`;
 
   const insertSql = `
-    INSERT INTO webhook_endpoints (id, org_id, url, subscribed_events, signing_secret, is_active, created_at)
-    VALUES ($1, $2, $3, $4, $5, true, NOW())
-    RETURNING id, url, subscribed_events, is_active, created_at;
+    INSERT INTO webhook_endpoints (
+      id, org_id, url, subscribed_events, signing_secret, is_active,
+      mtls_enabled, tls_client_cert, tls_client_key, tls_ca_cert, created_at
+    )
+    VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, NOW())
+    RETURNING id, url, subscribed_events, is_active, mtls_enabled, created_at;
   `;
 
   try {
@@ -130,8 +155,12 @@ export async function POST(req: NextRequest) {
       endpointId,
       auth.orgId,
       url,
-      subscribed_events,
+      subscribedEvents,
       encryptedSecret,
+      mtlsEnabled,
+      parsed.data.tls_client_cert || null,
+      encryptedClientKey,
+      parsed.data.tls_ca_cert || null,
     ]);
 
     // Invalidate Redis active endpoints cache
@@ -145,6 +174,7 @@ export async function POST(req: NextRequest) {
           url: created.url,
           subscribed_events: created.subscribed_events,
           is_active: created.is_active,
+          mtls_enabled: created.mtls_enabled,
           signing_secret: rawSigningSecret, // Plaintext returned ONCE
           created_at: created.created_at.toISOString(),
         },

@@ -162,10 +162,12 @@ export class WebhookDeliveryWorker {
       trigger,
     } = job;
 
-    // 0. Circuit Breaker Gate: If endpoint is paused or disabled, abort delivery
+    // 0. Circuit Breaker Gate & mTLS Configuration
+    let tlsConfig: { clientCert?: string; clientKey?: string; caCert?: string } | undefined;
     if (endpointId) {
       const epCheck = await migrationPool.query(
-        "SELECT status, paused_reason FROM webhook_endpoints WHERE id = $1",
+        `SELECT status, paused_reason, mtls_enabled, tls_client_cert, tls_client_key, tls_ca_cert
+         FROM webhook_endpoints WHERE id = $1`,
         [endpointId]
       );
       if (epCheck.rows.length > 0) {
@@ -185,6 +187,22 @@ export class WebhookDeliveryWorker {
           );
           return;
         }
+
+        if (ep.mtls_enabled && ep.tls_client_cert && ep.tls_client_key) {
+          let plainKey = ep.tls_client_key;
+          if (plainKey.includes(":") && !plainKey.startsWith("-----BEGIN")) {
+            try {
+              plainKey = decryptSecret(plainKey);
+            } catch (e) {
+              logger.error({ err: e, endpointId }, "Failed to decrypt mTLS client key");
+            }
+          }
+          tlsConfig = {
+            clientCert: ep.tls_client_cert,
+            clientKey: plainKey,
+            caCert: ep.tls_ca_cert || undefined,
+          };
+        }
       }
     }
 
@@ -200,7 +218,7 @@ export class WebhookDeliveryWorker {
 
     const rawJsonBody = JSON.stringify(payload);
 
-    // 1. Send Outbound Webhook with SSRF protection, HMAC signature, and 5s timeout
+    // 1. Send Outbound Webhook with SSRF protection, HMAC signature, mTLS, and 5s timeout
     const result = await sendOutboundWebhook({
       deliveryId,
       endpointUrl,
@@ -208,6 +226,7 @@ export class WebhookDeliveryWorker {
       signingSecret: plainSecret,
       timeoutMs: env.WEBHOOK_TIMEOUT_MS || 5000,
       allowLoopback: process.env.ALLOW_TEST_LOOPBACK === "true",
+      tlsConfig,
     });
 
     const isSuccess =

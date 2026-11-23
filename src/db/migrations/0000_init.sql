@@ -114,6 +114,10 @@ CREATE TABLE IF NOT EXISTS webhook_endpoints (
   consecutive_failures INT NOT NULL DEFAULT 0,
   paused_at TIMESTAMPTZ,
   paused_reason TEXT,
+  mtls_enabled BOOLEAN NOT NULL DEFAULT false,
+  tls_client_cert TEXT,
+  tls_client_key TEXT,
+  tls_ca_cert TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

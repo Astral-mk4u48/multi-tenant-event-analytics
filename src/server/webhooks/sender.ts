@@ -4,6 +4,12 @@ import { validateOutboundUrl, ssrfSafeHttpAgent, ssrfSafeHttpsAgent, SSRFBlocked
 import { signWebhookPayload } from "./signer";
 import { logger } from "../logger";
 
+export interface OutboundTlsConfig {
+  clientCert?: string;
+  clientKey?: string;
+  caCert?: string;
+}
+
 export interface OutboundDeliveryParams {
   deliveryId: string;
   endpointUrl: string;
@@ -11,6 +17,7 @@ export interface OutboundDeliveryParams {
   signingSecret: string;
   timeoutMs?: number;
   allowLoopback?: boolean;
+  tlsConfig?: OutboundTlsConfig;
 }
 
 export interface OutboundDeliveryResult {
@@ -72,11 +79,39 @@ export async function sendOutboundWebhook(
 
   const parsedUrl = new URL(params.endpointUrl);
   const isHttps = parsedUrl.protocol === "https:";
-  const agent = allowLoopback
-    ? undefined
-    : isHttps
-    ? ssrfSafeHttpsAgent
-    : ssrfSafeHttpAgent;
+
+  // mTLS Validation: mTLS certificates can only be used with HTTPS endpoints
+  if (params.tlsConfig?.clientCert || params.tlsConfig?.clientKey) {
+    if (!isHttps) {
+      const errorMsg = "mTLS client certificates can only be configured with HTTPS endpoints";
+      logger.warn({ url: params.endpointUrl }, errorMsg);
+      return {
+        statusCode: null,
+        isTimeout: false,
+        latencyMs: Date.now() - startTime,
+        requestHeaders: {},
+        requestBody: tryParseJson(params.rawJsonBody),
+        responseHeaders: {},
+        responseBody: errorMsg,
+        responseTruncated: false,
+        signaturePrefix: "none",
+        error: errorMsg,
+      };
+    }
+  }
+
+  let agent: http.Agent | undefined;
+  if (isHttps && (params.tlsConfig?.clientCert || params.tlsConfig?.clientKey || params.tlsConfig?.caCert)) {
+    agent = new https.Agent({
+      cert: params.tlsConfig.clientCert,
+      key: params.tlsConfig.clientKey,
+      ca: params.tlsConfig.caCert,
+      rejectUnauthorized: !allowLoopback,
+    });
+  } else if (!allowLoopback) {
+    agent = isHttps ? ssrfSafeHttpsAgent : ssrfSafeHttpAgent;
+  }
+
   const transport = isHttps ? https : http;
 
   return new Promise((resolve) => {
