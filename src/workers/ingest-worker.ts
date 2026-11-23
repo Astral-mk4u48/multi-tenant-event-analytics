@@ -10,6 +10,7 @@ import {
   WebhookDeliverJobData,
 } from "../server/queues";
 import { matchesAnyPattern } from "../server/webhooks/matcher";
+import { clickhouse } from "../server/analytics/clickhouse";
 
 const BATCH_SIZE = env.INGEST_BATCH_SIZE || 100;
 const FLUSH_INTERVAL_MS = 2000;
@@ -123,6 +124,21 @@ export class IngestBatchWorker {
         { count, elapsedMs: elapsed },
         `Flushed ${count} events to PostgreSQL in ${elapsed}ms`
       );
+
+      // Replicate to ClickHouse analytics rollups if enabled
+      if (clickhouse.isEnabled()) {
+        clickhouse
+          .insertEvents(
+            batch.map((b) => ({
+              orgId: b.orgId,
+              eventName: b.eventName,
+              statusCode: b.statusCode,
+              latencyMs: b.ingestLatencyMs,
+              createdAt: b.createdAt,
+            }))
+          )
+          .catch(() => {});
+      }
 
       // 2. Publish Live Tail frames to Redis channel live:{org_id}
       const pipeline = redis.pipeline();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAuth } from "@/server/auth/guard";
 import { migrationPool } from "@/db";
 import { logger } from "@/server/logger";
+import { clickhouse } from "@/server/analytics/clickhouse";
 
 export const dynamic = "force-dynamic";
 
@@ -52,23 +53,39 @@ export async function GET(req: NextRequest) {
   try {
     const client = await migrationPool.connect();
     try {
+      // 0. Check ClickHouse High-Velocity Analytics Rollup Path
+      const chRollup = clickhouse.isEnabled()
+        ? await clickhouse.queryRollups(auth.orgId, rangeParam as "1h" | "24h" | "7d" | "30d")
+        : null;
+
       // 1. Current & Previous KPIs: Ingestion, Rate Limits, and p99 Latency
-      const kpiQuery = `
-        SELECT
-          COUNT(*) FILTER (WHERE status_code = 202 AND created_at >= NOW() - $2::interval)::int AS current_ingested,
-          COUNT(*) FILTER (WHERE status_code = 202 AND created_at < NOW() - $2::interval AND created_at >= NOW() - $3::interval)::int AS prev_ingested,
-          ROUND(COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY ingest_latency_ms) FILTER (WHERE created_at >= NOW() - $2::interval), 0)::numeric, 1) AS current_p99,
-          ROUND(COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY ingest_latency_ms) FILTER (WHERE created_at < NOW() - $2::interval AND created_at >= NOW() - $3::interval), 0)::numeric, 1) AS prev_p99
-        FROM events
-        WHERE org_id = $1 AND created_at >= NOW() - $3::interval;
-      `;
-      const kpiRes = await client.query(kpiQuery, [auth.orgId, config.interval, config.priorInterval]);
-      const kpiData = kpiRes.rows[0] || {
+      let kpiData = {
         current_ingested: 0,
         prev_ingested: 0,
         current_p99: 0,
         prev_p99: 0,
       };
+
+      if (chRollup) {
+        kpiData = {
+          current_ingested: chRollup.kpis.eventsIngested.value,
+          prev_ingested: 0,
+          current_p99: chRollup.kpis.p99LatencyMs.value,
+          prev_p99: 0,
+        };
+      } else {
+        const kpiQuery = `
+          SELECT
+            COUNT(*) FILTER (WHERE status_code = 202 AND created_at >= NOW() - $2::interval)::int AS current_ingested,
+            COUNT(*) FILTER (WHERE status_code = 202 AND created_at < NOW() - $2::interval AND created_at >= NOW() - $3::interval)::int AS prev_ingested,
+            ROUND(COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY ingest_latency_ms) FILTER (WHERE created_at >= NOW() - $2::interval), 0)::numeric, 1) AS current_p99,
+            ROUND(COALESCE(percentile_cont(0.99) WITHIN GROUP (ORDER BY ingest_latency_ms) FILTER (WHERE created_at < NOW() - $2::interval AND created_at >= NOW() - $3::interval), 0)::numeric, 1) AS prev_p99
+          FROM events
+          WHERE org_id = $1 AND created_at >= NOW() - $3::interval;
+        `;
+        const kpiRes = await client.query(kpiQuery, [auth.orgId, config.interval, config.priorInterval]);
+        kpiData = kpiRes.rows[0] || kpiData;
+      }
 
       // 2. Delivery Success Rate & DLQ Counts
       const deliveryQuery = `
@@ -112,62 +129,76 @@ export async function GET(req: NextRequest) {
       const dlqDelta = dlvData.current_dlq - dlvData.prev_dlq;
 
       // 3. Time-Series Event Volume Buckets
-      const seriesQuery = `
-        SELECT
-          date_trunc($3, created_at) AS bucket,
-          COUNT(*) FILTER (WHERE status_code = 202)::int AS ingested,
-          COUNT(*) FILTER (WHERE status_code = 429)::int AS rate_limited
-        FROM events
-        WHERE org_id = $1 AND created_at >= NOW() - $2::interval
-        GROUP BY 1
-        ORDER BY 1 ASC;
-      `;
-      const seriesRes = await client.query(seriesQuery, [auth.orgId, config.interval, config.bucketTrunc]);
-      const series = seriesRes.rows.map((r) => ({
-        t: new Date(r.bucket).toISOString(),
-        ingested: r.ingested,
-        rateLimited: r.rate_limited,
-      }));
+      let series: Array<{ bucket?: string; t?: string; ingested: number; rateLimited: number }> = [];
+      let topEventTypes: Array<{ name: string; count: number; percent: number }> = [];
 
-      // 4. Top Event Types Breakdown (Top 6 + other)
-      const topEventsQuery = `
-        WITH event_counts AS (
+      if (chRollup) {
+        series = chRollup.volumeSeries.map((s) => ({
+          bucket: s.bucket,
+          t: s.bucket,
+          ingested: s.ingested,
+          rateLimited: s.rateLimited,
+        }));
+        topEventTypes = chRollup.topEventTypes;
+      } else {
+        const seriesQuery = `
           SELECT
-            event_name,
-            COUNT(*)::int AS count
+            date_trunc($3, created_at) AS bucket,
+            COUNT(*) FILTER (WHERE status_code = 202)::int AS ingested,
+            COUNT(*) FILTER (WHERE status_code = 429)::int AS rate_limited
           FROM events
           WHERE org_id = $1 AND created_at >= NOW() - $2::interval
-          GROUP BY event_name
-        ),
-        total AS (
-          SELECT SUM(count)::int AS total_count FROM event_counts
-        )
-        SELECT
-          ec.event_name,
-          ec.count,
-          ROUND((ec.count * 100.0 / NULLIF(t.total_count, 0))::numeric, 1) AS percent
-        FROM event_counts ec, total t
-        ORDER BY ec.count DESC;
-      `;
-      const topRes = await client.query(topEventsQuery, [auth.orgId, config.interval]);
-      const rawTop = topRes.rows;
+          GROUP BY 1
+          ORDER BY 1 ASC;
+        `;
+        const seriesRes = await client.query(seriesQuery, [auth.orgId, config.interval, config.bucketTrunc]);
+        series = seriesRes.rows.map((r) => ({
+          bucket: new Date(r.bucket).toISOString(),
+          t: new Date(r.bucket).toISOString(),
+          ingested: r.ingested,
+          rateLimited: r.rate_limited,
+        }));
 
-      const topEventTypes = rawTop.slice(0, 6).map((r) => ({
-        name: r.event_name,
-        count: r.count,
-        percent: parseFloat(r.percent) || 0,
-      }));
+        // 4. Top Event Types Breakdown (Top 6 + other)
+        const topEventsQuery = `
+          WITH event_counts AS (
+            SELECT
+              event_name,
+              COUNT(*)::int AS count
+            FROM events
+            WHERE org_id = $1 AND created_at >= NOW() - $2::interval
+            GROUP BY event_name
+          ),
+          total AS (
+            SELECT SUM(count)::int AS total_count FROM event_counts
+          )
+          SELECT
+            ec.event_name,
+            ec.count,
+            ROUND((ec.count * 100.0 / NULLIF(t.total_count, 0))::numeric, 1) AS percent
+          FROM event_counts ec, total t
+          ORDER BY ec.count DESC;
+        `;
+        const topRes = await client.query(topEventsQuery, [auth.orgId, config.interval]);
+        const rawTop = topRes.rows;
 
-      if (rawTop.length > 6) {
-        const remaining = rawTop.slice(6);
-        const otherCount = remaining.reduce((acc, r) => acc + r.count, 0);
-        const otherPercent =
-          Math.round(remaining.reduce((acc, r) => acc + (parseFloat(r.percent) || 0), 0) * 10) / 10;
-        topEventTypes.push({
-          name: "other",
-          count: otherCount,
-          percent: otherPercent,
-        });
+        topEventTypes = rawTop.slice(0, 6).map((r) => ({
+          name: r.event_name,
+          count: r.count,
+          percent: parseFloat(r.percent) || 0,
+        }));
+
+        if (rawTop.length > 6) {
+          const remaining = rawTop.slice(6);
+          const otherCount = remaining.reduce((acc, r) => acc + r.count, 0);
+          const otherPercent =
+            Math.round(remaining.reduce((acc, r) => acc + (parseFloat(r.percent) || 0), 0) * 10) / 10;
+          topEventTypes.push({
+            name: "other",
+            count: otherCount,
+            percent: otherPercent,
+          });
+        }
       }
 
       const formattedSeries = series.map((s) => ({
@@ -222,17 +253,17 @@ export async function GET(req: NextRequest) {
             deltaLabel: `${rateDelta >= 0 ? "+" : ""}${rateDelta}% vs prev ${rangeParam}`,
           },
           p99LatencyMs: {
-            value: parseFloat(kpiData.current_p99) || 0,
-            current: parseFloat(kpiData.current_p99) || 0,
-            previous: parseFloat(kpiData.prev_p99) || 0,
+            value: Number(kpiData.current_p99) || 0,
+            current: Number(kpiData.current_p99) || 0,
+            previous: Number(kpiData.prev_p99) || 0,
             deltaMs: p99Delta,
             delta_pct: p99Delta,
             deltaLabel: `${p99Delta >= 0 ? "+" : ""}${p99Delta}ms vs prev ${rangeParam}`,
           },
           p99_latency_ms: {
-            value: parseFloat(kpiData.current_p99) || 0,
-            current: parseFloat(kpiData.current_p99) || 0,
-            previous: parseFloat(kpiData.prev_p99) || 0,
+            value: Number(kpiData.current_p99) || 0,
+            current: Number(kpiData.current_p99) || 0,
+            previous: Number(kpiData.prev_p99) || 0,
             deltaMs: p99Delta,
             delta_pct: p99Delta,
             deltaLabel: `${p99Delta >= 0 ? "+" : ""}${p99Delta}ms vs prev ${rangeParam}`,
