@@ -6,7 +6,7 @@ import { logger } from "../src/server/logger";
 export async function seed() {
   logger.info("Starting seed process...");
 
-  // 1. Upsert acme-prod organization
+  // 1. Upsert primary acme-prod organization
   const orgSlug = "acme-prod";
   const orgRes = await migrationPool.query(
     `INSERT INTO organizations (slug, name, rate_limit_rpm)
@@ -18,7 +18,17 @@ export async function seed() {
   const orgId = orgRes.rows[0].id;
   logger.info({ orgId }, "Seeded organization acme-prod");
 
-  // 2. Users & Memberships
+  // 2. Upsert secondary tenant globex-corp for multi-tenant isolation testing
+  const globexRes = await migrationPool.query(
+    `INSERT INTO organizations (slug, name, rate_limit_rpm)
+     VALUES ('globex-corp', 'Globex Corporation', 3000)
+     ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+     RETURNING id`
+  );
+  const globexId = globexRes.rows[0].id;
+  logger.info({ globexId }, "Seeded organization globex-corp");
+
+  // 3. Users & Memberships
   const usersData = [
     { email: "pavan.sankiliraj@gmail.com", name: "Pavan", role: "OWNER" },
     { email: "alex.chen@acme.com", name: "Alex Chen", role: "ADMIN" },
@@ -43,7 +53,7 @@ export async function seed() {
     );
   }
 
-  // 3. API Keys
+  // 4. API Keys
   const ingestKey = generateApiKey("INGEST");
   await migrationPool.query(
     `INSERT INTO api_keys (id, org_id, name, prefix, key_hash, scope, last_used_at)
@@ -60,7 +70,9 @@ export async function seed() {
     [adminKey.id, orgId, adminKey.prefix, adminKey.keyHash]
   );
 
-  // 4. Webhook Endpoints
+  logger.info({ ingestPrefix: ingestKey.prefix, adminPrefix: adminKey.prefix }, "Generated sample API keys");
+
+  // 5. Webhook Endpoints
   const ep1Secret = encryptSecret("whsec_9f2c41ab77d0e3a4b6c8d0e2f411aa22");
   const ep1Res = await migrationPool.query(
     `INSERT INTO webhook_endpoints (id, org_id, url, subscribed_events, signing_secret, is_active)
@@ -87,7 +99,7 @@ export async function seed() {
     [orgId, ep3Secret]
   );
 
-  // 5. Events & Deliveries across last 24h
+  // 6. Events & Deliveries across last 24h
   const eventTypes = [
     "payment.succeeded",
     "payment.failed",
@@ -101,7 +113,7 @@ export async function seed() {
   for (let i = 0; i < 60; i++) {
     const eventName = eventTypes[i % eventTypes.length];
     const evtId = `evt_01J9XK3M${i.toString().padStart(4, "0")}`;
-    const minutesAgo = i * 20; // past 20 hours
+    const minutesAgo = i * 20;
     const isRateLimited = i === 12 || i === 34;
     const latency = Math.round((8.5 + (i % 15) * 1.2) * 10) / 10;
 
@@ -171,7 +183,7 @@ export async function seed() {
             orgId,
             dlvId,
             att,
-            att === 1 ? "auto" : "auto",
+            "auto",
             attStatus,
             JSON.stringify({
               "content-type": "application/json",

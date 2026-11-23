@@ -273,8 +273,12 @@ export class IngestBatchWorker {
   }
 }
 
+import { fileURLToPath } from "url";
+import path from "path";
+
 // Standalone execution entrypoint
-if (require.main === module) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   logger.info("Starting standalone BullMQ IngestBatchWorker process...");
   new IngestBatchWorker(true);
 }
+
