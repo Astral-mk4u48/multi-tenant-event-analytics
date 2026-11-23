@@ -11,8 +11,14 @@ export async function GET() {
   let redisStatus = "ok";
   let isHealthy = true;
 
+  const withTimeout = <T>(promise: Promise<T>, ms = 1500): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Health check timeout")), ms)),
+    ]);
+
   try {
-    await pool.query("SELECT 1");
+    await withTimeout(pool.query("SELECT 1"));
   } catch (err) {
     dbStatus = "error";
     isHealthy = false;
@@ -20,7 +26,7 @@ export async function GET() {
   }
 
   try {
-    const pong = await redis.ping();
+    const pong = await withTimeout(redis.ping());
     if (pong !== "PONG") {
       redisStatus = "unexpected_response";
       isHealthy = false;
