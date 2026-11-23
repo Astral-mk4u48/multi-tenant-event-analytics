@@ -16,8 +16,8 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespassword
-          POSTGRES_DB: analytics_db
+          POSTGRES_PASSWORD: pass
+          POSTGRES_DB: analytics
         ports:
           - 5432:5432
         options: >-
@@ -37,12 +37,13 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/analytics_db
-      DATABASE_MIGRATION_URL: postgresql://postgres:postgrespassword@localhost:5432/analytics_db
+      DATABASE_URL: postgres://app_user:pass@localhost:5432/analytics
+      DATABASE_MIGRATION_URL: postgres://postgres:pass@localhost:5432/analytics
       REDIS_URL: redis://localhost:6379
-      SESSION_SECRET: ci-test-session-secret-key-32-chars-long
-      WEBHOOK_SECRET_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      AUTH_SECRET: dGhpc2lzYXNlY3JldGtleWZvcnNlc3Npb25zb2ZhdGxlYXN0MzJieXRlcw==
+      ENCRYPTION_KEY_HEX: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       APP_ENV: test
+      NODE_ENV: test
       PORT: 3000
 
     steps:
@@ -63,6 +64,9 @@ jobs:
 
       - name: TypeScript Type Check
         run: npx tsc --noEmit
+
+      - name: Initialize Non-Superuser Database Role
+        run: npx tsx scripts/init-ci-db.ts
 
       - name: Run Database Migrations
         run: npm run db:migrate
