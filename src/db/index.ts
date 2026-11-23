@@ -10,6 +10,8 @@ declare global {
   var __migrationPool: Pool | undefined;
 }
 
+const isLocal = (url: string) => url.includes("localhost") || url.includes("127.0.0.1");
+
 // Application pool connecting with non-superuser app_user (RLS enforced)
 export const pool =
   global.__dbPool ??
@@ -18,6 +20,7 @@ export const pool =
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
+    ssl: isLocal(env.DATABASE_URL) ? false : { rejectUnauthorized: false },
   });
 
 if (process.env.NODE_ENV !== "production") {
@@ -32,6 +35,7 @@ export const migrationPool =
   new Pool({
     connectionString: env.DATABASE_MIGRATION_URL,
     max: 5,
+    ssl: isLocal(env.DATABASE_MIGRATION_URL) ? false : { rejectUnauthorized: false },
   });
 
 if (process.env.NODE_ENV !== "production") {
