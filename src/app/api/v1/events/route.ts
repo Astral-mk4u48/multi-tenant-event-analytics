@@ -5,6 +5,7 @@ import { verifyApiKey } from "@/server/crypto";
 import { checkRateLimit, recordRateLimitDrop } from "@/server/ratelimit/limiter";
 import { eventsIngestQueue, IngestJobData } from "@/server/queues";
 import { logger } from "@/server/logger";
+import { redisCircuitBreaker, RedisCircuitBreakerOpenError } from "@/server/redis-circuit-breaker";
 import { resolveAuth } from "@/server/auth/guard";
 import { withTenant } from "@/db";
 import { events } from "@/db/schema";
@@ -167,12 +168,31 @@ export async function POST(req: NextRequest) {
     createdAt: timestamp ?? new Date().toISOString(),
   };
 
-  // 6. Enqueue raw event job into BullMQ ('events:ingest')
+  // 6. Enqueue raw event job into BullMQ ('events:ingest') protected by Redis circuit breaker
   try {
-    await eventsIngestQueue.add("ingest", eventJobData, {
-      jobId: idempotency_key ? `idemp_${apiKey.orgId}_${idempotency_key}` : undefined,
-    });
+    await redisCircuitBreaker.execute(() =>
+      eventsIngestQueue.add("ingest", eventJobData, {
+        jobId: idempotency_key ? `idemp_${apiKey.orgId}_${idempotency_key}` : undefined,
+      })
+    );
   } catch (err) {
+    if (err instanceof RedisCircuitBreakerOpenError) {
+      logger.warn({ err, eventId }, "Ingestion rejected: Redis circuit breaker is OPEN");
+      return NextResponse.json(
+        {
+          error: "Service Unavailable: Redis cluster unreachable (circuit breaker OPEN)",
+          retry_after: err.retryAfter,
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": err.retryAfter.toString(),
+            ...rateLimitHeaders,
+          },
+        }
+      );
+    }
+
     logger.error({ err, eventId }, "Failed to enqueue event into BullMQ");
     return NextResponse.json(
       { error: "Internal Server Error: Ingestion queue unavailable" },

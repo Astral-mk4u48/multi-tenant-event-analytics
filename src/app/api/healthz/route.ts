@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/db";
 import { redis } from "@/server/redis";
 import { logger } from "@/server/logger";
+import { redisCircuitBreaker } from "@/server/redis-circuit-breaker";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +26,21 @@ export async function GET() {
     logger.error({ err }, "Database health check failed");
   }
 
-  try {
-    const pong = await withTimeout(redis.ping());
-    if (pong !== "PONG") {
-      redisStatus = "unexpected_response";
-      isHealthy = false;
-    }
-  } catch (err) {
-    redisStatus = "error";
+  if (redisCircuitBreaker.getState() === "OPEN") {
+    redisStatus = "circuit_open";
     isHealthy = false;
-    logger.error({ err }, "Redis health check failed");
+  } else {
+    try {
+      const pong = await redisCircuitBreaker.execute(() => withTimeout(redis.ping()));
+      if (pong !== "PONG") {
+        redisStatus = "unexpected_response";
+        isHealthy = false;
+      }
+    } catch (err) {
+      redisStatus = "error";
+      isHealthy = false;
+      logger.error({ err }, "Redis health check failed");
+    }
   }
 
   const durationMs = Date.now() - startTime;

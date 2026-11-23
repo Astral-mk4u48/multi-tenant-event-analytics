@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { redis } from "../redis";
 import { logger } from "../logger";
+import { redisCircuitBreaker } from "../redis-circuit-breaker";
 
 // Atomic Redis Lua Sliding-Window Rate Limiter script per Section 3.2 of the specification
 const SLIDING_WINDOW_LUA = `
@@ -48,40 +49,46 @@ export async function checkRateLimit(
   const reqId = crypto.randomUUID();
   const key = `rl:{${orgId}}`;
 
-  try {
-    const rawResult = (await redis.eval(
-      SLIDING_WINDOW_LUA,
-      1,
-      key,
-      now.toString(),
-      windowMs.toString(),
-      limit.toString(),
-      reqId
-    )) as [number, number, number];
+  return redisCircuitBreaker.execute(
+    async () => {
+      const rawResult = (await redis.eval(
+        SLIDING_WINDOW_LUA,
+        1,
+        key,
+        now.toString(),
+        windowMs.toString(),
+        limit.toString(),
+        reqId
+      )) as [number, number, number];
 
-    const allowed = rawResult[0] === 1;
-    const remaining = rawResult[1];
-    const retryAfterSeconds = rawResult[2];
-    const resetSeconds = Math.ceil((now + windowMs) / 1000);
+      const allowed = rawResult[0] === 1;
+      const remaining = rawResult[1];
+      const retryAfterSeconds = rawResult[2];
+      const resetSeconds = Math.ceil((now + windowMs) / 1000);
 
-    return {
-      allowed,
-      limit,
-      remaining: Math.max(remaining, 0),
-      retryAfterSeconds,
-      resetSeconds,
-    };
-  } catch (err) {
-    logger.error({ err, orgId }, "Rate limiter Redis evaluation error; failing open to preserve ingestion");
-    // Under extreme Redis failure, fail open to avoid dropping production telemetry
-    return {
-      allowed: true,
-      limit,
-      remaining: 1,
-      retryAfterSeconds: 0,
-      resetSeconds: Math.ceil((now + windowMs) / 1000),
-    };
-  }
+      return {
+        allowed,
+        limit,
+        remaining: Math.max(remaining, 0),
+        retryAfterSeconds,
+        resetSeconds,
+      };
+    },
+    // Fallback: When Redis fails or circuit breaker is OPEN, fail open to preserve ingestion
+    () => {
+      logger.warn(
+        { orgId },
+        "Rate limiter circuit breaker open or Redis failed; failing open to preserve event ingress"
+      );
+      return {
+        allowed: true,
+        limit,
+        remaining: 1,
+        retryAfterSeconds: 0,
+        resetSeconds: Math.ceil((now + windowMs) / 1000),
+      };
+    }
+  );
 }
 
 /**
@@ -97,25 +104,25 @@ export async function recordRateLimitDrop(
   const minuteBucket = now.toISOString().slice(0, 16).replace(/[-:T]/g, "");
   const metricKey = `metrics:429:{${orgId}}:${minuteBucket}`;
 
-  try {
-    const pipeline = redis.pipeline();
-    pipeline.incr(metricKey);
-    pipeline.expire(metricKey, 86400); // 24-hour retention
+  await redisCircuitBreaker
+    .execute(async () => {
+      const pipeline = redis.pipeline();
+      pipeline.incr(metricKey);
+      pipeline.expire(metricKey, 86400); // 24-hour retention
 
-    // Publish frame to Live Tail subscriber channel
-    const liveFrame = JSON.stringify({
-      id: `evt_drop_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
-      event: eventName,
-      status: 429,
-      latency_ms: latencyMs,
-      org_id: orgId,
-      timestamp: now.toISOString(),
-      method: "POST",
-    });
-    pipeline.publish(`live:{${orgId}}`, liveFrame);
+      // Publish frame to Live Tail subscriber channel
+      const liveFrame = JSON.stringify({
+        id: `evt_drop_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
+        event: eventName,
+        status: 429,
+        latency_ms: latencyMs,
+        org_id: orgId,
+        timestamp: now.toISOString(),
+        method: "POST",
+      });
+      pipeline.publish(`live:{${orgId}}`, liveFrame);
 
-    await pipeline.exec();
-  } catch (err) {
-    logger.warn({ err, orgId }, "Failed to record 429 rate limit telemetry");
-  }
+      await pipeline.exec();
+    }, () => {})
+    .catch(() => {});
 }

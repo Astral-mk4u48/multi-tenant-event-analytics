@@ -11,6 +11,7 @@ import {
 } from "../server/queues";
 import { matchesAnyPattern } from "../server/webhooks/matcher";
 import { clickhouse } from "../server/analytics/clickhouse";
+import { redisCircuitBreaker } from "../server/redis-circuit-breaker";
 
 const BATCH_SIZE = env.INGEST_BATCH_SIZE || 100;
 const FLUSH_INTERVAL_MS = 2000;
@@ -140,21 +141,30 @@ export class IngestBatchWorker {
           .catch(() => {});
       }
 
-      // 2. Publish Live Tail frames to Redis channel live:{org_id}
-      const pipeline = redis.pipeline();
-      for (const item of batch) {
-        const liveFrame = JSON.stringify({
-          id: item.id,
-          event: item.eventName,
-          status: item.statusCode,
-          latency_ms: item.ingestLatencyMs,
-          org_id: item.orgId,
-          timestamp: item.createdAt,
-          method: "POST",
-        });
-        pipeline.publish(`live:{${item.orgId}}`, liveFrame);
-      }
-      await pipeline.exec();
+      // 2. Publish Live Tail frames to Redis channel live:{org_id} (protected by circuit breaker)
+      await redisCircuitBreaker
+        .execute(
+          async () => {
+            const pipeline = redis.pipeline();
+            for (const item of batch) {
+              const liveFrame = JSON.stringify({
+                id: item.id,
+                event: item.eventName,
+                status: item.statusCode,
+                latency_ms: item.ingestLatencyMs,
+                org_id: item.orgId,
+                timestamp: item.createdAt,
+                method: "POST",
+              });
+              pipeline.publish(`live:{${item.orgId}}`, liveFrame);
+            }
+            await pipeline.exec();
+          },
+          () => {
+            logger.warn("Skipping Live Tail frame publishing: Redis circuit breaker OPEN or unreachable");
+          }
+        )
+        .catch(() => {});
 
       // 3. Webhook Fan-Out
       await this.fanOutWebhooks(batch);

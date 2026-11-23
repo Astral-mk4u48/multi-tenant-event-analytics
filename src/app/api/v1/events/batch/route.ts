@@ -5,6 +5,7 @@ import { verifyApiKey } from "@/server/crypto";
 import { checkRateLimit, recordRateLimitDrop } from "@/server/ratelimit/limiter";
 import { eventsIngestQueue, IngestJobData } from "@/server/queues";
 import { logger } from "@/server/logger";
+import { redisCircuitBreaker, RedisCircuitBreakerOpenError } from "@/server/redis-circuit-breaker";
 
 export const dynamic = "force-dynamic";
 
@@ -128,8 +129,25 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await eventsIngestQueue.addBulk(jobs);
+    await redisCircuitBreaker.execute(() => eventsIngestQueue.addBulk(jobs));
   } catch (err) {
+    if (err instanceof RedisCircuitBreakerOpenError) {
+      logger.warn({ err }, "Batch ingestion rejected: Redis circuit breaker is OPEN");
+      return NextResponse.json(
+        {
+          error: "Service Unavailable: Redis cluster unreachable (circuit breaker OPEN)",
+          retry_after: err.retryAfter,
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": err.retryAfter.toString(),
+            ...rateLimitHeaders,
+          },
+        }
+      );
+    }
+
     logger.error({ err }, "Failed to bulk-enqueue events into BullMQ");
     return NextResponse.json(
       { error: "Internal Server Error: Ingestion queue unavailable" },
