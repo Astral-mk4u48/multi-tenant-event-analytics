@@ -44,6 +44,7 @@ describe("Part 4: Multi-Tenant RLS Scoping & Tenant Isolation Verification", () 
     sessionCookieA = signSession({
       userId: userA,
       email: `user-a-${Date.now()}@test.internal`,
+      name: "User A",
       orgId: orgA,
       role: "OWNER",
     });
@@ -51,6 +52,7 @@ describe("Part 4: Multi-Tenant RLS Scoping & Tenant Isolation Verification", () 
     sessionCookieB = signSession({
       userId: userB,
       email: `user-b-${Date.now()}@test.internal`,
+      name: "User B",
       orgId: orgB,
       role: "OWNER",
     });

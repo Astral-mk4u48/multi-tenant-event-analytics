@@ -11,6 +11,28 @@ export async function provisionNewUserAndOrg(params: {
 }) {
   // Use migrationDb to safely bootstrap new tenant records across RLS boundaries
   return await migrationDb.transaction(async (tx) => {
+    // Idempotency: if user already has an org membership (by userId or verified email), return existing records
+    const existingMembership = await tx
+      .select({ orgId: orgMembers.orgId, userId: orgMembers.userId })
+      .from(orgMembers)
+      .innerJoin(users, eq(users.id, orgMembers.userId))
+      .where(sql`${users.id} = ${params.userId}::uuid OR ${users.email} = ${params.email}`)
+      .limit(1);
+
+    if (existingMembership.length > 0) {
+      const [existingOrg] = await tx
+        .select()
+        .from(organizations)
+        .where(eq(organizations.id, existingMembership[0].orgId))
+        .limit(1);
+      const [existingUser] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, existingMembership[0].userId))
+        .limit(1);
+      return { user: existingUser, org: existingOrg };
+    }
+
     // 1. Upsert base user record
     const [userRecord] = await tx
       .insert(users)

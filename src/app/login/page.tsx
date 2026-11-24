@@ -92,6 +92,31 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!supabaseUrl || !supabaseKey) {
+        setError("Supabase authentication is not configured");
+        return;
+      }
+      const { createBrowserClient } = await import("@supabase/ssr");
+      const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+      const origin = window.location.origin;
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/callback`,
+        },
+      });
+      if (oauthError) {
+        setError(oauthError.message);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to initiate Google sign-in");
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-canvas p-4 text-ink">
       <div className="w-full max-w-[400px] border border-hairline bg-surface p-8">
@@ -120,6 +145,27 @@ export default function LoginPage() {
             <span>{error}</span>
           </div>
         )}
+
+        {/* Continue with Google */}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleGoogleSignIn}
+          className="w-full justify-center h-[34px] flex items-center gap-2 mb-4 border-hairline hover:border-hairline-strong text-ink"
+        >
+          <svg className="w-3.5 h-3.5 text-ink shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+          </svg>
+          <span>Continue with Google</span>
+        </Button>
+
+        <div className="mb-4 flex items-center gap-3">
+          <div className="h-[1px] flex-1 bg-hairline-subtle" />
+          <span className="font-mono text-[10px] text-ink-3 uppercase tracking-wider">
+            OR
+          </span>
+          <div className="h-[1px] flex-1 bg-hairline-subtle" />
+        </div>
 
         <form onSubmit={handleSignIn} className="space-y-4" noValidate>
           <div>
