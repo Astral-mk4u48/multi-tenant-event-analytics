@@ -14,7 +14,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isTestEventOpen, setIsTestEventOpen] = useState(false);
 
-  // Global Keyboard Shortcuts (Section 7.7)
   useEffect(() => {
     let lastKey = "";
     let lastKeyTime = 0;
@@ -35,7 +34,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // G then key chords (1-second window)
       if (!isInput) {
         const now = Date.now();
         if (e.key.toLowerCase() === "g") {
@@ -64,13 +62,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <DrawerProvider>
-      <div className="min-h-screen bg-canvas text-ink flex">
+      <div className="flex min-h-screen w-full bg-canvas text-ink overflow-x-hidden">
         {/* Fixed 232px Sidebar */}
         <Sidebar />
 
-        {/* Main Application Area (offset by 232px sidebar) */}
-        <div className="flex-1 ml-sidebar flex flex-col min-h-screen">
-          {/* Fixed 48px Topbar wrapped in Suspense boundary */}
+        {/* Main Application Area (contained with min-w-0 to prevent horizontal blowout) */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden ml-sidebar min-h-screen">
           <Suspense fallback={<div className="fixed top-0 left-sidebar right-0 h-topbar bg-canvas border-b border-hairline-subtle z-shell" />}>
             <Topbar
               onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
@@ -78,23 +75,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </Suspense>
 
-          {/* Main Viewport Content (offset by 48px topbar, p-6, max-w-[1440px]) */}
-          <main className="mt-topbar flex-1 p-6 max-w-[1440px] w-full">
+          <main className="mt-topbar min-w-0 flex-1 p-6 max-w-[1440px] w-full overflow-x-auto">
             {children}
           </main>
         </div>
 
-        {/* Global Slide-Over Payload Inspector Drawer */}
         <PayloadDrawer />
 
-        {/* ⌘K Command Palette */}
         <CommandPalette
           isOpen={isCommandPaletteOpen}
           onClose={() => setIsCommandPaletteOpen(false)}
           onOpenTestEvent={() => setIsTestEventOpen(true)}
         />
 
-        {/* Send Test Event Modal */}
         <SendTestEventModal
           isOpen={isTestEventOpen}
           onClose={() => setIsTestEventOpen(false)}
