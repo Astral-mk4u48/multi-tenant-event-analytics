@@ -90,6 +90,9 @@ export const orgMemberships = pgTable(
   ]
 );
 
+export const orgMembers = orgMemberships;
+
+
 // 4. API Keys
 export const apiKeys = pgTable(
   "api_keys",
