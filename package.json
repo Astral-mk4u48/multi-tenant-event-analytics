@@ -23,6 +23,8 @@
     "magic-string": "^0.30.17"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.2",
     "@tailwindcss/postcss": "^4.0.0",
     "bullmq": "^5.41.0",
     "drizzle-orm": "^0.39.0",
