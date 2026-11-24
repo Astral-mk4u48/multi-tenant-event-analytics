@@ -7,6 +7,7 @@ export interface SessionPayload {
   role: "OWNER" | "ADMIN" | "VIEWER";
   email: string;
   name: string;
+  isDemo?: boolean;
   exp: number; // Unix timestamp in seconds
 }
 

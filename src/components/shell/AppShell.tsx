@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { DrawerProvider } from "../drawer/DrawerContext";
@@ -15,8 +16,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isTestEventOpen, setIsTestEventOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
+    if (typeof document !== "undefined") {
+      setIsDemo(document.cookie.includes("is_demo=true"));
+    }
     let lastKey = "";
     let lastKeyTime = 0;
 
@@ -84,6 +89,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Suspense>
 
           <main className="mt-topbar min-w-0 flex-1 p-6 max-w-[1440px] w-full overflow-x-auto">
+            {isDemo && (
+              <div className="mb-6 bg-elevated border border-hairline px-4 py-2 text-xs font-mono text-ink-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber" />
+                  <span className="text-ink font-medium">Demo workspace (read-only, resets daily)</span>
+                </div>
+                <Link href="/signup" className="text-accent hover:underline text-[11px] font-sans">
+                  Create your own workspace →
+                </Link>
+              </div>
+            )}
             {children}
           </main>
         </div>

@@ -36,6 +36,12 @@ export async function DELETE(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized: Authentication required" }, { status: 401 });
     }
+    if (session.isDemo || session.email === "demo@eventpulse.dev") {
+      return NextResponse.json(
+        { error: "Demo workspace is read-only. Purging the dead letter queue is disabled." },
+        { status: 403 }
+      );
+    }
     orgId = session.orgId;
     userRole = session.role;
   }

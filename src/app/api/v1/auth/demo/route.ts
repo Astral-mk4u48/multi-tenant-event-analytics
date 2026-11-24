@@ -56,13 +56,14 @@ async function handleDemoAuth(req: NextRequest) {
       [userId, orgId]
     );
 
-    // 4. Issue signed session cookie
+    // 4. Issue signed session cookie with isDemo flag
     const token = signSession({
       userId,
       orgId,
       role: "OWNER",
       email: "demo@eventpulse.dev",
       name: "Demo User",
+      isDemo: true,
     });
 
     const isGet = req.method === "GET";
@@ -83,6 +84,16 @@ async function handleDemoAuth(req: NextRequest) {
     res.cookies.set({
       name: "active_org_id",
       value: orgId,
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    res.cookies.set({
+      name: "is_demo",
+      value: "true",
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

@@ -80,6 +80,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (auth.isDemo) {
+    return NextResponse.json(
+      { error: "Demo workspace is read-only. Generating API keys is disabled." },
+      { status: 403 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

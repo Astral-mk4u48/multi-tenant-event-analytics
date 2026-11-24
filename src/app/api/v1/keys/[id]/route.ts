@@ -24,6 +24,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (auth.isDemo) {
+    return NextResponse.json(
+      { error: "Demo workspace is read-only. Revoking API keys is disabled." },
+      { status: 403 }
+    );
+  }
+
   const { id: keyId } = await params;
 
   try {

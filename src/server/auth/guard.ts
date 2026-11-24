@@ -10,6 +10,8 @@ export interface AuthContext {
   role: Role;
   userId?: string;
   keyId?: string;
+  email?: string;
+  isDemo?: boolean;
   authType: "api_key" | "session";
 }
 
@@ -44,6 +46,8 @@ export async function resolveAuth(req: NextRequest): Promise<AuthContext | null>
         orgId: session.orgId,
         role: session.role,
         userId: session.userId,
+        email: session.email,
+        isDemo: session.isDemo || session.email === "demo@eventpulse.dev",
         authType: "session",
       };
     }

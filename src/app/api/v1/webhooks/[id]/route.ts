@@ -37,6 +37,13 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (auth.isDemo) {
+    return NextResponse.json(
+      { error: "Demo workspace is read-only. Modifying webhook endpoints is disabled." },
+      { status: 403 }
+    );
+  }
+
   const { id: endpointId } = await params;
 
   let body: unknown;
@@ -168,6 +175,13 @@ export async function DELETE(
 
   if (!checkCapability(auth, "manage_webhooks")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (auth.isDemo) {
+    return NextResponse.json(
+      { error: "Demo workspace is read-only. Modifying webhook endpoints is disabled." },
+      { status: 403 }
+    );
   }
 
   const { id: endpointId } = await params;

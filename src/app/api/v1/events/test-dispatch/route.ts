@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
 
 const testDispatchSchema = z.object({
   eventType: z.string().min(1).optional(),
+  eventName: z.string().min(1).optional(),
   event_name: z.string().min(1).optional(),
   payload: z.record(z.unknown()),
-}).refine((d) => d.eventType || d.event_name, {
+}).refine((d) => d.eventType || d.eventName || d.event_name, {
   message: "eventType or event_name required",
 });
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const eventName = parsed.data.eventType || parsed.data.event_name || "test.event";
+  const eventName = parsed.data.eventType || parsed.data.eventName || parsed.data.event_name || "test.event";
   const payload = parsed.data.payload;
   const eventId = `evt_test_${crypto.randomBytes(8).toString("hex")}`;
 

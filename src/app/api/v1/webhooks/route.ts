@@ -109,6 +109,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (auth.isDemo) {
+    return NextResponse.json(
+      { error: "Demo workspace is read-only. Creating webhook endpoints is disabled." },
+      { status: 403 }
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();
