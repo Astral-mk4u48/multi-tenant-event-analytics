@@ -1,5 +1,6 @@
 import { fileURLToPath, pathToFileURL } from "url";
 import path from "path";
+import crypto from "crypto";
 import { migrationPool } from "../src/db";
 import { encryptSecret, generateApiKey } from "../src/server/crypto";
 import { logger } from "../src/server/logger";
@@ -137,6 +138,16 @@ export async function seed() {
      VALUES ($1, $2, 'ops-admin', $3, $4, 'ADMIN', NOW() - INTERVAL '30 days', NOW() - INTERVAL '1 day')
      ON CONFLICT (key_hash) DO NOTHING`,
     [adminKey.id, orgId, adminKey.prefix, adminKey.keyHash]
+  );
+
+  // Deterministic INGEST key for k6 load runner / benchmarks
+  const loadTestKey = "pk_live_acme_ingest_test_key_sample";
+  const loadTestHash = crypto.createHash("sha256").update(loadTestKey).digest("hex");
+  await migrationPool.query(
+    `INSERT INTO api_keys (id, org_id, name, prefix, key_hash, scope, created_at, last_used_at)
+     VALUES ('key_k6_benchmark_ingest', $1, 'k6-benchmark-ingest', 'pk_live_acme', $2, 'INGEST', NOW() - INTERVAL '90 days', NOW())
+     ON CONFLICT (key_hash) DO NOTHING`,
+    [orgId, loadTestHash]
   );
 
   // 6. Registered Webhook Endpoints
