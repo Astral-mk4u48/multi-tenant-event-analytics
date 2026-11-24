@@ -6,6 +6,7 @@ import { matchesEventPattern } from "@/server/webhooks/matcher";
 import { logger } from "@/server/logger";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
  * GET /api/v1/events/stream

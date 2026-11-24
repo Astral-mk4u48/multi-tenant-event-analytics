@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveAuth, checkCapability } from "@/server/auth/guard";
+import { validateOutboundUrl, SSRFBlockedError } from "@/server/webhooks/ssrf";
 import { migrationPool } from "@/db";
 import { redis } from "@/server/redis";
 import { logger } from "@/server/logger";
@@ -55,6 +56,21 @@ export async function PATCH(
   let valIdx = 3;
 
   if (parsed.data.url !== undefined) {
+    const allowLoopback = process.env.ALLOW_TEST_LOOPBACK === "true";
+    try {
+      await validateOutboundUrl(parsed.data.url, allowLoopback);
+    } catch (err: unknown) {
+      if (err instanceof SSRFBlockedError) {
+        return NextResponse.json(
+          { error: `Invalid webhook URL: ${err.message}` },
+          { status: 422 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Invalid webhook URL or hostname cannot be resolved" },
+        { status: 422 }
+      );
+    }
     updates.push(`url = $${valIdx}`);
     values.push(parsed.data.url);
     valIdx++;

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { resolveAuth, checkCapability } from "@/server/auth/guard";
 import { migrationPool } from "@/db";
 import { encryptSecret, toBase62 } from "@/server/crypto";
+import { validateOutboundUrl, SSRFBlockedError } from "@/server/webhooks/ssrf";
 import { redis } from "@/server/redis";
 import { logger } from "@/server/logger";
 
@@ -130,6 +131,23 @@ export async function POST(req: NextRequest) {
   if (mtlsEnabled && !url.startsWith("https://")) {
     return NextResponse.json(
       { error: "mTLS requires an HTTPS URL" },
+      { status: 422 }
+    );
+  }
+
+  // SSRF Protection: Reject private/loopback/cloud metadata IP ranges upfront
+  const allowLoopback = process.env.ALLOW_TEST_LOOPBACK === "true";
+  try {
+    await validateOutboundUrl(url, allowLoopback);
+  } catch (err: unknown) {
+    if (err instanceof SSRFBlockedError) {
+      return NextResponse.json(
+        { error: `Invalid webhook URL: ${err.message}` },
+        { status: 422 }
+      );
+    }
+    return NextResponse.json(
+      { error: "Invalid webhook URL or hostname cannot be resolved" },
       { status: 422 }
     );
   }

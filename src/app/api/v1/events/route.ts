@@ -9,7 +9,7 @@ import { redisCircuitBreaker, RedisCircuitBreakerOpenError } from "@/server/redi
 import { resolveAuth } from "@/server/auth/guard";
 import { withTenant } from "@/db";
 import { events } from "@/db/schema";
-import { desc, eq, like, and } from "drizzle-orm";
+import { desc, eq, like, and, lt, SQL } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +38,21 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
   const search = url.searchParams.get("search");
+  const cursor = url.searchParams.get("cursor");
 
   return withTenant(auth.orgId, async (tx) => {
-    let query = tx
+    const conditions: SQL[] = [eq(events.orgId, auth.orgId)];
+    if (search) {
+      conditions.push(like(events.eventName, `%${search}%`));
+    }
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        conditions.push(lt(events.createdAt, cursorDate));
+      }
+    }
+
+    const rows = await tx
       .select({
         id: events.id,
         eventName: events.eventName,
@@ -51,16 +63,15 @@ export async function GET(req: NextRequest) {
         createdAt: events.createdAt,
       })
       .from(events)
-      .where(
-        search
-          ? and(eq(events.orgId, auth.orgId), like(events.eventName, `%${search}%`))
-          : eq(events.orgId, auth.orgId)
-      )
+      .where(and(...conditions))
       .orderBy(desc(events.createdAt))
-      .limit(limit);
+      .limit(limit + 1);
 
-    const rows = await query;
-    return NextResponse.json({ data: rows });
+    const hasMore = rows.length > limit;
+    const data = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].createdAt.toISOString() : null;
+
+    return NextResponse.json({ data, next_cursor: nextCursor, has_more: hasMore });
   });
 }
 

@@ -10,8 +10,20 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Surface uncaught client exceptions to browser console for debugging
-    console.error("Dashboard runtime error:", error);
+    // Deliver client runtime failure with digest to backend pino logger
+    try {
+      fetch("/api/v1/telemetry/error", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: error.message,
+          stack: error.stack,
+          digest: error.digest,
+        }),
+      }).catch(() => {});
+    } catch {
+      // Ignore boundary transport errors
+    }
   }, [error]);
 
   return (
@@ -23,7 +35,7 @@ export default function DashboardError({
         </p>
         {error.digest && (
           <div className="mt-4 bg-inset p-2 font-mono text-[11px] text-ink-2">
-            {error.digest}
+            Digest ID: {error.digest}
           </div>
         )}
         <button

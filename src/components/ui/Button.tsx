@@ -42,7 +42,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants: Record<ButtonVariant, string> = {
       primary:
-        "bg-crimson hover:bg-crimson-hover active:bg-[#9F1239] text-white border border-transparent",
+        "bg-crimson hover:bg-crimson-hover active:bg-crimson-hover text-white border border-transparent",
       secondary:
         "bg-elevated hover:border-hairline-strong active:bg-surface text-ink border border-hairline",
       ghost:

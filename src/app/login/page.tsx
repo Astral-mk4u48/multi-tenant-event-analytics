@@ -3,20 +3,48 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const validate = () => {
+    let valid = true;
+    setEmailError("");
+    setPasswordError("");
+
+    if (!email.trim()) {
+      setEmailError("Email address is required");
+      valid = false;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Please enter a valid email address");
+      valid = false;
+    }
+
+    if (!password) {
+      setPasswordError("Password is required");
+      valid = false;
+    }
+
+    return valid;
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!validate()) return;
+
     setLoading(true);
 
     try {
@@ -28,7 +56,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Authentication failed");
+        throw new Error(data.error || "Invalid credentials");
       }
 
       router.push("/dashboard");
@@ -80,41 +108,79 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="mb-4 border border-accent-border bg-accent-subtle p-3 text-xs text-accent">
-            {error}
+          <div className="mb-4 border border-crimson/30 bg-crimson-subtle p-3 text-xs text-crimson flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSignIn} className="space-y-4">
+        <form onSubmit={handleSignIn} className="space-y-4" noValidate>
           <div>
             <label className="text-xs font-medium text-ink-2">Work Email</label>
-            <Input
+            <input
               type="email"
+              autoComplete="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (emailError) setEmailError("");
+              }}
               placeholder="you@company.com"
-              className="mt-1"
+              className={`mt-1 h-[32px] w-full bg-surface border px-3 text-[13px] text-ink placeholder:text-ink-3 transition-colors duration-150 focus:outline-none ${
+                emailError ? "border-crimson" : "border-hairline hover:border-hairline-strong focus:border-accent"
+              }`}
             />
+            {emailError && (
+              <p className="mt-1 text-[11px] text-crimson">{emailError}</p>
+            )}
           </div>
 
           <div>
-            <label className="text-xs font-medium text-ink-2">Password</label>
-            <Input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="mt-1"
-            />
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-ink-2">Password</label>
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-[11px] text-ink-3 hover:text-ink transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+            <div className="relative mt-1">
+              <input
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }}
+                placeholder="••••••••"
+                className={`h-[32px] w-full bg-surface border px-3 pr-9 text-[13px] text-ink placeholder:text-ink-3 transition-colors duration-150 focus:outline-none ${
+                  passwordError ? "border-crimson" : "border-hairline hover:border-hairline-strong focus:border-accent"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink transition-colors p-0.5"
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {passwordError && (
+              <p className="mt-1 text-[11px] text-crimson">{passwordError}</p>
+            )}
           </div>
 
           <Button
             type="submit"
             variant="primary"
             disabled={loading}
-            className="w-full justify-center"
+            className="w-full justify-center h-[32px]"
           >
             {loading ? "Signing in..." : "Sign In"}
           </Button>
@@ -133,7 +199,7 @@ export default function LoginPage() {
           variant="secondary"
           onClick={handleDemoSignIn}
           disabled={demoLoading}
-          className="w-full justify-center"
+          className="w-full justify-center h-[32px]"
         >
           {demoLoading ? "Loading sandbox..." : "Explore Demo Workspace"}
         </Button>
@@ -145,6 +211,27 @@ export default function LoginPage() {
           </Link>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-surface border border-hairline max-w-sm w-full p-6 space-y-4">
+            <h3 className="type-section text-ink">Reset Password</h3>
+            <p className="type-body text-ink-2 text-xs">
+              Password credentials for active tenants are managed via your workspace OWNER or administrator. To reset your access, contact your tenant admin or use your linked SSO provider.
+            </p>
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowForgotPassword(false)}
+              >
+                Understood
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

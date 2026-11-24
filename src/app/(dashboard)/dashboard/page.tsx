@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AreaChart,
   Area,
@@ -18,7 +19,7 @@ import {
   AlertTriangle,
   RotateCw,
   RefreshCw,
-  ExternalLink,
+  Eye,
 } from "lucide-react";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Button } from "@/components/ui/Button";
@@ -114,15 +115,15 @@ interface DeliveryItem {
 
 export default function OverviewPage() {
   const { openDrawer } = useDrawer();
+  const searchParams = useSearchParams();
+  const rangeParam = searchParams.get("range");
+  const range: "1h" | "24h" | "7d" | "30d" =
+    rangeParam === "1h" || rangeParam === "7d" || rangeParam === "30d"
+      ? rangeParam
+      : "24h";
+
   const [isMounted, setIsMounted] = useState(false);
   const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
-  const [range, setRange] = useState<"1h" | "24h" | "7d" | "30d">(() => {
-    const saved = safeGetStorage("dashboard_range");
-    if (saved === "1h" || saved === "24h" || saved === "7d" || saved === "30d") {
-      return saved;
-    }
-    return "24h";
-  });
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [recentFailures, setRecentFailures] = useState<DeliveryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,11 +133,6 @@ export default function OverviewPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  const handleRangeChange = (newRange: "1h" | "24h" | "7d" | "30d") => {
-    setRange(newRange);
-    safeSetStorage("dashboard_range", newRange);
-  };
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -155,7 +151,8 @@ export default function OverviewPage() {
         const failuresJson = await failuresRes.json();
         setRecentFailures(failuresJson.data || []);
       }
-    } catch (err) {
+    } catch {
+      // Handled gracefully
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -175,7 +172,8 @@ export default function OverviewPage() {
       if (res.ok) {
         fetchOverview();
       }
-    } catch (err) {
+    } catch {
+      // Replay handled gracefully
     } finally {
       setReplayingId(null);
     }
@@ -190,19 +188,35 @@ export default function OverviewPage() {
   // Safe KPI value extractors with fallbacks across both naming conventions
   const eventsMetric = data?.kpis?.events_ingested ?? data?.kpis?.eventsIngested;
   const eventsCurrent = eventsMetric?.current ?? eventsMetric?.value ?? 0;
-  const eventsDelta = eventsMetric?.delta_pct ?? eventsMetric?.deltaPercent ?? eventsMetric?.delta;
+  const eventsPrev = eventsMetric?.previous ?? 0;
+
+  // Sane KPI Ingestion Delta: % only if baseline >= 20 events
+  let formattedEventsDelta: string | undefined;
+  if (eventsPrev >= 20 && eventsMetric?.delta_pct !== undefined) {
+    const p = eventsMetric.delta_pct;
+    formattedEventsDelta = `${p >= 0 ? "+" : ""}${p.toFixed(1)}%`;
+  } else if (eventsPrev > 0) {
+    const diff = eventsCurrent - eventsPrev;
+    formattedEventsDelta = `${diff >= 0 ? "+" : ""}${diff} events`;
+  } else {
+    formattedEventsDelta = "no prior data";
+  }
 
   const rateMetric = data?.kpis?.delivery_success_rate ?? data?.kpis?.deliverySuccessRate;
   const rateCurrent = rateMetric?.current ?? rateMetric?.value ?? 0;
-  const rateDelta = rateMetric?.delta_pct ?? rateMetric?.deltaPercent ?? rateMetric?.delta;
+  const rateDeltaFormatted = rateCurrent >= 99.0 ? "TARGET MET (≥99%)" : "BELOW TARGET (<99%)";
+  const rateDeltaType: "positive" | "negative" = rateCurrent >= 99.0 ? "positive" : "negative";
 
   const p99Metric = data?.kpis?.p99_latency_ms ?? data?.kpis?.p99LatencyMs;
   const p99Current = p99Metric?.current ?? p99Metric?.value ?? 0;
-  const p99Delta = p99Metric?.delta_pct ?? p99Metric?.deltaMs;
+  const p99DeltaFormatted = p99Current <= 250 ? "TARGET MET (≤250ms)" : "ELEVATED (>250ms)";
+  const p99DeltaType: "positive" | "negative" = p99Current <= 250 ? "positive" : "negative";
 
   const dlqMetric = data?.kpis?.dlq_count ?? data?.kpis?.dlqCount;
   const dlqCurrent = dlqMetric?.current ?? dlqMetric?.value ?? 0;
-  const dlqDelta = dlqMetric?.delta_pct ?? dlqMetric?.delta;
+  const dlqPrev = dlqMetric?.previous ?? 0;
+  const dlqDiff = dlqCurrent - dlqPrev;
+  const formattedDlqDelta = `${dlqDiff >= 0 ? "+" : ""}${dlqDiff}`;
 
   // Normalized time series array
   const volumeSeries = (data?.volume_series ?? data?.volumeSeries ?? []).map((item) => ({
@@ -210,6 +224,8 @@ export default function OverviewPage() {
     ingested: item.ingested,
     rate_limited: item.rate_limited ?? item.rateLimited ?? 0,
   }));
+
+  const totalRateLimited = volumeSeries.reduce((acc, curr) => acc + (curr.rate_limited || 0), 0);
 
   // Normalized top event types array
   const topEvents = (data?.top_event_types ?? data?.topEventTypes ?? []).map((item) => ({
@@ -220,7 +236,7 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Page Header (Single source of truth: range is controlled exclusively in Topbar) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="type-page-title text-ink">Overview</h1>
@@ -230,23 +246,6 @@ export default function OverviewPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Segmented Range Selector */}
-          <div className="flex items-center bg-surface border border-hairline-subtle p-0.5">
-            {(["1h", "24h", "7d", "30d"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => handleRangeChange(r)}
-                className={`px-3 py-1 type-micro mono-data transition-colors ${
-                  range === r
-                    ? "bg-elevated text-ink font-semibold"
-                    : "text-ink-3 hover:text-ink"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-
           <Button
             variant="ghost"
             size="sm"
@@ -270,7 +269,7 @@ export default function OverviewPage() {
         <KpiCard
           title="Events Ingested"
           value={isLoading ? "—" : formatNumber(eventsCurrent)}
-          delta={eventsDelta}
+          delta={formattedEventsDelta}
           deltaType="positive"
           subtitle={`vs previous ${range}`}
           icon={Activity}
@@ -279,8 +278,8 @@ export default function OverviewPage() {
         <KpiCard
           title="Delivery Success Rate"
           value={isLoading ? "—" : `${rateCurrent.toFixed(1)}%`}
-          delta={rateDelta}
-          deltaType="positive"
+          delta={rateDeltaFormatted}
+          deltaType={rateDeltaType}
           subtitle="Target: ≥ 99.0%"
           icon={CheckCircle2}
           loading={isLoading}
@@ -288,8 +287,8 @@ export default function OverviewPage() {
         <KpiCard
           title="p99 Ingestion Latency"
           value={isLoading ? "—" : `${p99Current}ms`}
-          delta={p99Delta}
-          deltaType="negative"
+          delta={p99DeltaFormatted}
+          deltaType={p99DeltaType}
           subtitle="Target: ≤ 250ms"
           icon={Clock}
           loading={isLoading}
@@ -297,7 +296,7 @@ export default function OverviewPage() {
         <KpiCard
           title="Dead Letter Queue"
           value={isLoading ? "—" : dlqCurrent.toString()}
-          delta={dlqDelta}
+          delta={formattedDlqDelta}
           deltaType="neutral"
           subtitle="Undelivered webhooks"
           icon={AlertTriangle}
@@ -323,7 +322,9 @@ export default function OverviewPage() {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-0.5 bg-amber" />
-              <span className="text-ink-2">Rate Limited (429)</span>
+              <span className="text-ink-2">
+                Rate limited: {totalRateLimited.toLocaleString()} total
+              </span>
             </div>
           </div>
         </div>
@@ -344,7 +345,7 @@ export default function OverviewPage() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={volumeSeries}
-                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
               >
                 <defs>
                   <linearGradient id="ingestGradient" x1="0" y1="0" x2="0" y2="1">
@@ -362,19 +363,20 @@ export default function OverviewPage() {
                   tickFormatter={(val) => {
                     const d = new Date(val);
                     return range === "1h"
-                      ? `${d.getUTCMinutes()}m`
-                      : `${d.getUTCHours()}:00`;
+                      ? `${String(d.getUTCMinutes()).padStart(2, "0")}m`
+                      : `${String(d.getUTCHours()).padStart(2, "0")}:00`;
                   }}
                   tick={{ fill: "#63636E", fontSize: 11, fontFamily: "var(--font-geist-mono)" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
+                  allowDecimals={false}
                   tick={{ fill: "#63636E", fontSize: 11, fontFamily: "var(--font-geist-mono)" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatNumber(v)}
-                  width={40}
+                  width={45}
                 />
                 <Tooltip
                   isAnimationActive={false}
@@ -406,7 +408,7 @@ export default function OverviewPage() {
                   }}
                 />
                 <Area
-                  type="monotone"
+                  type="stepAfter"
                   dataKey="ingested"
                   stroke="#E11D48"
                   strokeWidth={1.5}
@@ -417,7 +419,7 @@ export default function OverviewPage() {
                   activeDot={{ r: 3, fill: "#E11D48", stroke: "#0F0F12", strokeWidth: 1 }}
                 />
                 <Line
-                  type="monotone"
+                  type="stepAfter"
                   dataKey="rate_limited"
                   stroke="#F59E0B"
                   strokeWidth={1.5}
@@ -513,59 +515,71 @@ export default function OverviewPage() {
                     </td>
                   </tr>
                 ) : (
-                  recentFailures.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="h-10 hover:bg-elevated/40 transition-colors text-ink type-micro"
-                    >
-                      <td className="px-2 mono-data font-medium text-ink truncate max-w-[140px]">
-                        {item.event_name}
-                      </td>
-                      <td className="px-2 mono-data text-ink-3 truncate max-w-[160px]">
-                        {item.endpoint_url}
-                      </td>
-                      <td className="px-2 mono-data">
-                        <Badge variant="neutral">
-                          {item.attempt_count}/{item.max_attempts}
-                        </Badge>
-                      </td>
-                      <td className="px-2 text-crimson mono-data truncate max-w-[140px]">
-                        {item.last_status_code
-                          ? `HTTP ${item.last_status_code}`
-                          : item.last_error || "TIMEOUT"}
-                      </td>
-                      <td className="px-2 mono-data text-ink-3">
-                        {new Date(item.created_at).toISOString().substring(11, 19)}
-                      </td>
-                      <td className="px-2 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={replayingId === item.id}
-                            onClick={() => handleReplay(item.id)}
-                            className="p-1 h-6 w-6"
-                            title="Replay Webhook"
-                          >
-                            <RotateCw
-                              className={`w-3 h-3 ${
-                                replayingId === item.id ? "animate-spin" : ""
-                              }`}
-                            />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDrawer(item.id)}
-                            className="p-1 h-6 w-6"
-                            title="Inspect Payload"
-                          >
-                            <ExternalLink className="w-3 h-3 text-ink-3 hover:text-ink" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  recentFailures.map((item) => {
+                    const urlDetails = (() => {
+                      try {
+                        const parsed = new URL(item.endpoint_url);
+                        return { host: parsed.host, path: parsed.pathname };
+                      } catch {
+                        return { host: item.endpoint_url, path: "" };
+                      }
+                    })();
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="h-11 hover:bg-elevated/40 transition-colors text-ink type-body"
+                      >
+                        <td className="px-2 mono-data font-medium text-ink truncate max-w-[140px]">
+                          {item.event_name}
+                        </td>
+                        <td className="px-2 mono-data text-ink-2 truncate max-w-[200px]" title={item.endpoint_url}>
+                          <span className="text-ink font-medium">{urlDetails.host}</span>
+                          <span className="text-ink-3">{urlDetails.path}</span>
+                        </td>
+                        <td className="px-2 mono-data">
+                          <Badge variant="neutral">
+                            {item.attempt_count}/{item.max_attempts}
+                          </Badge>
+                        </td>
+                        <td className="px-2 text-crimson mono-data truncate max-w-[140px]">
+                          {item.last_status_code
+                            ? `HTTP ${item.last_status_code}`
+                            : item.last_error || "TIMEOUT"}
+                        </td>
+                        <td className="px-2 mono-data text-ink-3">
+                          {new Date(item.created_at).toISOString().substring(11, 19)}
+                        </td>
+                        <td className="px-2 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDrawer(item.id)}
+                              className="h-8 px-2.5 text-ink-2 hover:text-ink flex items-center gap-1"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Inspect</span>
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={replayingId === item.id}
+                              onClick={() => handleReplay(item.id)}
+                              className="h-8 px-2.5 text-ink flex items-center gap-1"
+                            >
+                              <RotateCw
+                                className={`w-3.5 h-3.5 ${
+                                  replayingId === item.id ? "animate-spin" : ""
+                                }`}
+                              />
+                              <span>Replay</span>
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

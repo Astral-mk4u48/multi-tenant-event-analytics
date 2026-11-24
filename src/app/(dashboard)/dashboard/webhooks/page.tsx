@@ -27,15 +27,17 @@ interface WebhookEndpoint {
   id: string;
   url: string;
   description: string | null;
-  events: string[];
-  enabled: boolean;
+  events?: string[];
+  subscribed_events?: string[];
+  enabled?: boolean;
+  is_active?: boolean;
   status: "ACTIVE" | "PAUSED" | "DISABLED";
   health_score: number;
   consecutive_failures: number;
   paused_at: string | null;
   paused_reason: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 interface DeliveryLogItem {
@@ -88,9 +90,27 @@ export default function WebhooksPage() {
       const res = await fetch("/api/v1/webhooks");
       if (res.ok) {
         const json = await res.json();
-        setEndpoints(json.data || []);
+        const rawList = json.data || json.endpoints || [];
+        const normalized: WebhookEndpoint[] = rawList.map((ep: Record<string, unknown>) => ({
+          ...ep,
+          id: String(ep.id),
+          url: String(ep.url),
+          description: (ep.description as string | null) || null,
+          events: Array.isArray(ep.events) ? ep.events : Array.isArray(ep.subscribed_events) ? ep.subscribed_events : ["*"],
+          subscribed_events: Array.isArray(ep.subscribed_events) ? ep.subscribed_events : Array.isArray(ep.events) ? ep.events : ["*"],
+          enabled: typeof ep.enabled === "boolean" ? ep.enabled : typeof ep.is_active === "boolean" ? ep.is_active : true,
+          is_active: typeof ep.is_active === "boolean" ? ep.is_active : typeof ep.enabled === "boolean" ? ep.enabled : true,
+          status: (ep.status as "ACTIVE" | "PAUSED" | "DISABLED") || (ep.is_active !== false ? "ACTIVE" : "DISABLED"),
+          health_score: typeof ep.health_score === "number" ? ep.health_score : typeof ep.success_rate_24h === "number" ? ep.success_rate_24h : 100,
+          consecutive_failures: typeof ep.consecutive_failures === "number" ? ep.consecutive_failures : 0,
+          paused_at: (ep.paused_at as string | null) || null,
+          paused_reason: (ep.paused_reason as string | null) || null,
+          created_at: String(ep.created_at || new Date().toISOString()),
+        }));
+        setEndpoints(normalized);
       }
-    } catch (e) {
+    } catch {
+      // Fallback handled gracefully
     } finally {
       setLoadingEndpoints(false);
     }
@@ -118,7 +138,8 @@ export default function WebhooksPage() {
         setNextCursor(json.pagination?.next_cursor || null);
         setPrevCursor(json.pagination?.prev_cursor || null);
       }
-    } catch (e) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch deliveries:", err);
     } finally {
       setLoadingDeliveries(false);
     }
@@ -156,19 +177,23 @@ export default function WebhooksPage() {
   // Toggle Endpoint
   const handleToggle = async (endpoint: WebhookEndpoint) => {
     try {
+      const nextActive = !endpoint.enabled;
       const res = await fetch(`/api/v1/webhooks/${endpoint.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !endpoint.enabled }),
+        body: JSON.stringify({ enabled: nextActive, is_active: nextActive }),
       });
       if (res.ok) {
         setEndpoints((prev) =>
           prev.map((e) =>
-            e.id === endpoint.id ? { ...e, enabled: !e.enabled } : e
+            e.id === endpoint.id
+              ? { ...e, enabled: nextActive, is_active: nextActive, status: nextActive ? "ACTIVE" : "DISABLED" }
+              : e
           )
         );
       }
-    } catch (err) {
+    } catch {
+      // Toggle error handled gracefully
     }
   };
 
@@ -195,7 +220,8 @@ export default function WebhooksPage() {
           [endpointId]: { secret: json.signing_secret, countdown: 10 },
         }));
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to reveal secret:", err);
     }
   };
 
@@ -256,7 +282,8 @@ export default function WebhooksPage() {
       if (res.ok) {
         setEndpoints((prev) => prev.filter((e) => e.id !== endpointId));
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to reveal secret:", err);
     }
   };
 
@@ -270,7 +297,8 @@ export default function WebhooksPage() {
       if (res.ok) {
         await fetchEndpoints();
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to resume webhook endpoint:", err);
     } finally {
       setResumingId(null);
     }
@@ -286,7 +314,8 @@ export default function WebhooksPage() {
       if (res.ok) {
         fetchDeliveries(currentCursor);
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to replay webhook delivery:", err);
     } finally {
       setReplayingId(null);
     }
@@ -304,6 +333,7 @@ export default function WebhooksPage() {
             </p>
           </div>
           <Button
+            id="add-endpoint-btn"
             variant="primary"
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-1.5"
@@ -418,7 +448,7 @@ export default function WebhooksPage() {
                     {/* Subscribed Events Badges */}
                     <div className="flex items-center flex-wrap gap-1.5">
                       <span className="type-label text-ink-3 mr-1">EVENTS:</span>
-                      {ep.events.map((evt) => (
+                      {(ep.events || ep.subscribed_events || []).map((evt) => (
                         <Badge key={evt} variant="neutral">
                           {evt}
                         </Badge>

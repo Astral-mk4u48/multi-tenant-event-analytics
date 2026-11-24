@@ -45,6 +45,18 @@
   --color-accent-subtle:  rgb(225 29 72 / 0.12);
   --color-accent-border:  rgb(225 29 72 / 0.35);
 
+  /* Aliases for color tokens used in UI components */
+  --color-crimson:         #E11D48;
+  --color-crimson-hover:   #BE123C;
+  --color-crimson-subtle:  rgb(225 29 72 / 0.12);
+  --color-crimson-border:  rgb(225 29 72 / 0.35);
+
+  --color-emerald:         #10B981;
+  --color-emerald-subtle:  rgb(16 185 129 / 0.12);
+
+  --color-amber:           #F59E0B;
+  --color-amber-subtle:    rgb(245 158 11 / 0.12);
+
   /* ---- Layer 5: Semantic HTTP / webhook status -------------------------- */
   --color-status-success: #10B981;  /* 2xx, Healthy                          */
   --color-status-warning: #F59E0B;  /* 3xx, Retrying, 429 Rate-Limited       */
@@ -238,6 +250,10 @@
   font-size: 13px; line-height: 20px; font-weight: 400;
 }
 @utility type-micro {
+  font-size: 11px; line-height: 16px; font-weight: 500;
+  letter-spacing: 0.02em; color: var(--text-muted);
+}
+@utility type-label {
   font-size: 11px; line-height: 16px; font-weight: 500;
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);
 }

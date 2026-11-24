@@ -32,7 +32,7 @@ export default function LiveTailPage() {
   const { openDrawer } = useDrawer();
   const [events, setEvents] = useState<LiveEventFrame[]>([]);
   const [isStreaming, setIsStreaming] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<"connected" | "reconnecting" | "paused" | "disconnected">("disconnected");
   const [eventFilter, setEventFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "200" | "429">("ALL");
   const [isScrolledUp, setIsScrolledUp] = useState(false);
@@ -40,23 +40,28 @@ export default function LiveTailPage() {
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isStreamingRef = useRef(isStreaming);
   isStreamingRef.current = isStreaming;
 
   const isScrolledUpRef = useRef(isScrolledUp);
   isScrolledUpRef.current = isScrolledUp;
 
-  // Setup EventSource connection
+  // Setup EventSource connection with auto-reconnect backoff
   const connectSSE = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
 
+    setConnectionState("reconnecting");
     const es = new EventSource("/api/v1/events/stream");
     eventSourceRef.current = es;
 
     es.onopen = () => {
-      setIsConnected(true);
+      setConnectionState(isStreamingRef.current ? "connected" : "paused");
     };
 
     es.onmessage = (event) => {
@@ -77,18 +82,27 @@ export default function LiveTailPage() {
         if (isScrolledUpRef.current) {
           setUnreadCount((c) => c + 1);
         }
-      } catch (e) {
+      } catch {
+        // Ignore frame parse error
       }
     };
 
     es.onerror = () => {
-      setIsConnected(false);
+      setConnectionState("reconnecting");
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      // Re-establish connection automatically after 3s
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectSSE();
+      }, 3000);
     };
   }, []);
 
   useEffect(() => {
     connectSSE();
     return () => {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -143,18 +157,22 @@ export default function LiveTailPage() {
           <div className="flex items-center gap-2 px-2.5 py-1 bg-surface border border-hairline-subtle">
             <span
               className={`w-2 h-2 rounded-full ${
-                isConnected
+                connectionState === "connected"
                   ? isStreaming
                     ? "status-dot-emerald pulse-soft"
                     : "bg-amber"
+                  : connectionState === "reconnecting"
+                  ? "bg-amber animate-pulse"
                   : "bg-crimson"
               }`}
             />
             <span className="type-micro mono-data text-ink-2">
-              {isConnected
-                ? isStreaming
-                  ? "STREAMING"
-                  : "PAUSED"
+              {!isStreaming
+                ? "PAUSED"
+                : connectionState === "connected"
+                ? "STREAMING"
+                : connectionState === "reconnecting"
+                ? "RECONNECTING"
                 : "DISCONNECTED"}
             </span>
           </div>
@@ -187,10 +205,10 @@ export default function LiveTailPage() {
             <Filter className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
             <input
               type="text"
-              placeholder="Filter by event... (/)"
+              placeholder="Filter by event..."
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
-              className="bg-surface border border-hairline-subtle text-ink type-micro pl-8 pr-3 py-1.5 focus:border-hairline-strong focus:outline-none w-48 mono-data"
+              className="bg-surface border border-hairline-subtle text-ink type-micro pl-8 pr-3 py-1.5 focus:border-hairline-strong focus:outline-none w-52 mono-data"
             />
           </div>
 
@@ -224,7 +242,7 @@ export default function LiveTailPage() {
       </div>
 
       {/* Disconnect Warning Banner */}
-      {!isConnected && (
+      {connectionState !== "connected" && (
         <div className="flex items-center justify-between px-4 py-2 bg-crimson-subtle border border-crimson/30 text-crimson type-micro">
           <div className="flex items-center gap-2">
             <WifiOff className="w-4 h-4" />
@@ -257,7 +275,9 @@ export default function LiveTailPage() {
         <div
           ref={terminalRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto divide-y divide-hairline-subtle font-mono type-micro select-text"
+          className={`flex-1 divide-y divide-hairline-subtle font-mono type-micro select-text ${
+            filteredEvents.length === 0 ? "overflow-hidden" : "overflow-y-auto"
+          }`}
         >
           {filteredEvents.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 text-ink-3">

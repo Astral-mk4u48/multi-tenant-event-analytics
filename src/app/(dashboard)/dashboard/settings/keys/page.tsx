@@ -68,7 +68,8 @@ export default function ApiKeysPage() {
         const json = await res.json();
         setKeys(json.data || json.keys || json.items || []);
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch API keys:", err);
     } finally {
       setLoadingKeys(false);
     }
@@ -82,7 +83,8 @@ export default function ApiKeysPage() {
         const json = await res.json();
         setMembers(json.data || json.members || json.items || []);
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch API keys:", err);
     } finally {
       setLoadingMembers(false);
     }
@@ -148,7 +150,8 @@ export default function ApiKeysPage() {
       if (res.ok) {
         setKeys((prev) => prev.filter((k) => k.id !== id));
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch API keys:", err);
     } finally {
       setRevokingId(null);
     }
@@ -166,6 +169,7 @@ export default function ApiKeysPage() {
             </p>
           </div>
           <Button
+            id="create-key-btn"
             variant="primary"
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-1.5"

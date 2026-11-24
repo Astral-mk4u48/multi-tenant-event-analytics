@@ -12,6 +12,7 @@ import {
   RefreshCw,
   X,
   AlertTriangle,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -66,6 +67,8 @@ export default function DlqPage() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeRowIndex, setActiveRowIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<"flat" | "grouped">("flat");
+  const [collapsedEndpoints, setCollapsedEndpoints] = useState<Set<string>>(new Set());
 
   const [isReplayingBulk, setIsReplayingBulk] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
@@ -87,7 +90,8 @@ export default function DlqPage() {
         setDeliveries(rawList);
         setSelectedIds(new Set());
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch DLQ records:", err);
     } finally {
       setLoading(false);
     }
@@ -129,7 +133,8 @@ export default function DlqPage() {
       if (res.ok) {
         fetchDlq();
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch DLQ records:", err);
     } finally {
       setIsReplayingBulk(false);
     }
@@ -147,7 +152,8 @@ export default function DlqPage() {
         setIsPurgeModalOpen(false);
         fetchDlq();
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      console.error("Failed to fetch DLQ records:", err);
     } finally {
       setIsPurging(false);
     }
@@ -162,11 +168,56 @@ export default function DlqPage() {
       if (res.ok) {
         fetchDlq();
       }
-    } catch (err) {
+    } catch {
+      // Replay failure handled
     } finally {
       setReplayingSingleId(null);
     }
   };
+
+  const handleReplayAll = async () => {
+    if (deliveries.length === 0) return;
+    try {
+      setIsReplayingBulk(true);
+      const res = await fetch("/api/v1/dlq/replay-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deliveryIds: deliveries.map((d) => d.id) }),
+      });
+      if (res.ok) {
+        fetchDlq();
+      }
+    } catch {
+      // Replay handled
+    } finally {
+      setIsReplayingBulk(false);
+    }
+  };
+
+  const toggleEndpointCollapse = (endpointUrl: string) => {
+    setCollapsedEndpoints((prev) => {
+      const next = new Set(prev);
+      if (next.has(endpointUrl)) next.delete(endpointUrl);
+      else next.add(endpointUrl);
+      return next;
+    });
+  };
+
+  // Group deliveries by destination endpoint URL
+  const groupedDeliveries = React.useMemo(() => {
+    const groups: Record<string, DlqDelivery[]> = {};
+    for (const d of deliveries) {
+      const url = d.endpoint_url ?? d.endpointUrl ?? "Unknown Destination";
+      if (!groups[url]) groups[url] = [];
+      groups[url].push(d);
+    }
+    return Object.entries(groups).map(([url, items]) => ({
+      endpointUrl: url,
+      count: items.length,
+      lastFailure: items[0]?.updated_at ?? items[0]?.createdAt ?? items[0]?.created_at,
+      items,
+    }));
+  }, [deliveries]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -209,6 +260,42 @@ export default function DlqPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Hidden CTA target for Topbar 'Replay All Failed' button */}
+          <button
+            id="replay-all-dlq-btn"
+            type="button"
+            onClick={handleReplayAll}
+            disabled={deliveries.length === 0 || isReplayingBulk}
+            className="hidden"
+            aria-hidden="true"
+          />
+
+          {/* View Mode Toggle: Flat vs Grouped */}
+          <div className="inline-flex items-center p-0.5 rounded bg-surface border border-hairline-subtle text-[11px] mono-data">
+            <button
+              type="button"
+              onClick={() => setViewMode("flat")}
+              className={`px-2.5 py-1 transition-colors cursor-pointer ${
+                viewMode === "flat"
+                  ? "bg-elevated text-ink font-medium"
+                  : "text-ink-3 hover:text-ink-2"
+              }`}
+            >
+              Flat View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("grouped")}
+              className={`px-2.5 py-1 transition-colors cursor-pointer ${
+                viewMode === "grouped"
+                  ? "bg-elevated text-ink font-medium"
+                  : "text-ink-3 hover:text-ink-2"
+              }`}
+            >
+              Grouped by Endpoint
+            </button>
+          </div>
+
           <Button
             variant="ghost"
             size="sm"
@@ -268,6 +355,125 @@ export default function DlqPage() {
                     <p className="mt-1">All outbound webhook deliveries succeeded cleanly.</p>
                   </td>
                 </tr>
+              ) : viewMode === "grouped" ? (
+                groupedDeliveries.map((group) => {
+                  const isCollapsed = collapsedEndpoints.has(group.endpointUrl);
+                  return (
+                    <React.Fragment key={group.endpointUrl}>
+                      <tr
+                        className="bg-elevated/80 border-y border-hairline-strong font-medium text-xs text-ink cursor-pointer select-none"
+                        onClick={() => toggleEndpointCollapse(group.endpointUrl)}
+                      >
+                        <td colSpan={7} className="px-4 py-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight
+                                className={`w-3.5 h-3.5 text-ink-3 transition-transform ${
+                                  !isCollapsed ? "rotate-90" : ""
+                                }`}
+                              />
+                              <span className="mono-data font-semibold text-ink">{group.endpointUrl}</span>
+                              <Badge variant="crimson">{group.count} Failed</Badge>
+                            </div>
+                            <span className="mono-data text-ink-3 type-micro">
+                              Last failure: {safeFormatDate(group.lastFailure)}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {!isCollapsed &&
+                        group.items.map((item) => {
+                          const isSelected = selectedIds.has(item.id);
+                          const eventName = item.event_name ?? item.eventName ?? "—";
+                          const endpointUrl = item.endpoint_url ?? item.endpointUrl ?? "—";
+                          const attemptCount = item.attempt_count ?? item.attemptCount ?? 0;
+                          const maxAttempts = item.max_attempts ?? item.maxAttempts ?? 5;
+                          const lastError =
+                            item.last_error ??
+                            item.lastError ??
+                            (item.last_status_code ? `HTTP ${item.last_status_code}` : "—");
+                          const failedAt = safeFormatDate(
+                            item.updated_at ?? item.updatedAt ?? item.created_at ?? item.createdAt
+                          );
+
+                          return (
+                            <tr
+                              key={item.id}
+                              className={`h-11 transition-colors text-ink type-body cursor-pointer ${
+                                isSelected ? "bg-crimson-subtle/20" : "hover:bg-elevated/40"
+                              }`}
+                              onClick={() => toggleSelectRow(item.id)}
+                            >
+                              <td
+                                className="px-4 text-center"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectRow(item.id);
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  className="p-1 text-ink"
+                                  aria-label={`Select row ${item.id}`}
+                                >
+                                  {isSelected ? (
+                                    <CheckSquare className="w-4 h-4 text-crimson" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-ink-3" />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-4 mono-data font-semibold text-ink truncate max-w-[180px]">
+                                {eventName}
+                              </td>
+                              <td className="px-4 mono-data text-ink-2 truncate max-w-[240px]">
+                                {endpointUrl}
+                              </td>
+                              <td className="px-4 mono-data text-crimson font-medium">
+                                {attemptCount}/{maxAttempts}
+                              </td>
+                              <td className="px-4 mono-data text-crimson truncate max-w-[220px]">
+                                {lastError}
+                              </td>
+                              <td className="px-4 mono-data text-ink-3 type-micro whitespace-nowrap">
+                                {failedAt}
+                              </td>
+                              <td
+                                className="px-4 text-right whitespace-nowrap"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openDrawer(item.id)}
+                                    className="h-7 px-2.5 text-ink-2 hover:text-ink"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 mr-1" />
+                                    <span>Inspect</span>
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => handleSingleReplay(item.id)}
+                                    disabled={replayingSingleId === item.id}
+                                    className="h-7 px-2.5 text-ink"
+                                  >
+                                    <RotateCw
+                                      className={`w-3.5 h-3.5 mr-1 ${
+                                        replayingSingleId === item.id ? "animate-spin" : ""
+                                      }`}
+                                    />
+                                    <span>Replay</span>
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </React.Fragment>
+                  );
+                })
               ) : (
                 deliveries.map((item, index) => {
                   const isSelected = selectedIds.has(item.id);
