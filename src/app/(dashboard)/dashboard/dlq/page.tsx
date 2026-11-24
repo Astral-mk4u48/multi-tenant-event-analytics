@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  AlertTriangle,
   RotateCw,
   Trash2,
   Eye,
@@ -12,6 +11,7 @@ import {
   AlertOctagon,
   RefreshCw,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -19,18 +19,44 @@ import { useDrawer } from "@/components/drawer/DrawerContext";
 
 interface DlqDelivery {
   id: string;
-  event_id: string;
-  endpoint_id: string;
-  endpoint_url: string;
-  event_name: string;
-  state: "DLQ";
-  attempt_count: number;
-  max_attempts: number;
-  last_status_code: number | null;
-  last_latency_ms: number | null;
-  last_error: string | null;
-  created_at: string;
-  updated_at: string;
+  event_id?: string;
+  eventId?: string;
+  endpoint_id?: string;
+  endpointId?: string;
+  endpoint_url?: string;
+  endpointUrl?: string;
+  event_name?: string;
+  eventName?: string;
+  state?: "DLQ";
+  attempt_count?: number;
+  attemptCount?: number;
+  max_attempts?: number;
+  maxAttempts?: number;
+  last_status_code?: number | null;
+  lastStatusCode?: number | null;
+  last_latency_ms?: number | null;
+  lastLatencyMs?: number | null;
+  last_error?: string | null;
+  lastError?: string | null;
+  response_body?: string | null;
+  responseBody?: string | null;
+  next_retry_at?: string | null;
+  nextRetryAt?: string | null;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+}
+
+function safeFormatDate(val: string | null | undefined): string {
+  if (!val) return "—";
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return "—";
+    return d.toISOString().substring(0, 19).replace("T", " ");
+  } catch {
+    return "—";
+  }
 }
 
 export default function DlqPage() {
@@ -41,7 +67,6 @@ export default function DlqPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeRowIndex, setActiveRowIndex] = useState(0);
 
-  // Bulk actions state
   const [isReplayingBulk, setIsReplayingBulk] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
@@ -50,10 +75,16 @@ export default function DlqPage() {
   const fetchDlq = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/v1/deliveries?state=DLQ&limit=50");
+      const res = await fetch("/api/v1/dlq?limit=50");
       if (res.ok) {
         const json = await res.json();
-        setDeliveries(json.data || []);
+        // Support both items and data envelopes defensively
+        const rawList: DlqDelivery[] = Array.isArray(json.items)
+          ? json.items
+          : Array.isArray(json.data)
+          ? json.data
+          : [];
+        setDeliveries(rawList);
         setSelectedIds(new Set());
       }
     } catch (err) {
@@ -67,7 +98,6 @@ export default function DlqPage() {
     fetchDlq();
   }, [fetchDlq]);
 
-  // Master checkbox status
   const allSelected = deliveries.length > 0 && selectedIds.size === deliveries.length;
   const someSelected = selectedIds.size > 0 && selectedIds.size < deliveries.length;
 
@@ -88,15 +118,14 @@ export default function DlqPage() {
     });
   };
 
-  // Bulk Replay
   const handleBulkReplay = async () => {
     if (selectedIds.size === 0) return;
     try {
       setIsReplayingBulk(true);
-      const res = await fetch("/api/v1/dlq/replay-bulk", {
+      const res = await fetch("/api/v1/dlq/replay-batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ delivery_ids: Array.from(selectedIds) }),
+        body: JSON.stringify({ deliveryIds: Array.from(selectedIds) }),
       });
       if (res.ok) {
         fetchDlq();
@@ -108,7 +137,6 @@ export default function DlqPage() {
     }
   };
 
-  // Bulk Purge
   const handlePurge = async () => {
     try {
       setIsPurging(true);
@@ -128,11 +156,10 @@ export default function DlqPage() {
     }
   };
 
-  // Single Replay
   const handleSingleReplay = async (id: string) => {
     try {
       setReplayingSingleId(id);
-      const res = await fetch(`/api/v1/deliveries/${id}/replay`, {
+      const res = await fetch(`/api/v1/dlq/${id}/replay`, {
         method: "POST",
       });
       if (res.ok) {
@@ -145,7 +172,6 @@ export default function DlqPage() {
     }
   };
 
-  // Keyboard navigation for J/K/X/Enter
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput = ["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName);
@@ -206,13 +232,13 @@ export default function DlqPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-hairline-subtle h-9 text-ink-3 type-label bg-surface">
-                {/* Tri-state Checkbox Header */}
                 <th className="font-normal px-4 w-10 text-center">
                   <button
                     type="button"
                     onClick={toggleSelectAll}
                     className="text-ink hover:text-ink-2 p-1"
                     title={allSelected ? "Deselect All" : "Select All"}
+                    aria-label={allSelected ? "Deselect All" : "Select All"}
                   >
                     {allSelected ? (
                       <CheckSquare className="w-4 h-4 text-crimson" />
@@ -250,6 +276,15 @@ export default function DlqPage() {
                 deliveries.map((item, index) => {
                   const isSelected = selectedIds.has(item.id);
                   const isFocused = index === activeRowIndex;
+                  const eventName = item.event_name ?? item.eventName ?? "—";
+                  const endpointUrl = item.endpoint_url ?? item.endpointUrl ?? "—";
+                  const attemptCount = item.attempt_count ?? item.attemptCount ?? 0;
+                  const maxAttempts = item.max_attempts ?? item.maxAttempts ?? 5;
+                  const lastError =
+                    item.last_error ??
+                    item.lastError ??
+                    (item.last_status_code ? `HTTP ${item.last_status_code}` : "—");
+                  const failedAt = safeFormatDate(item.updated_at ?? item.updatedAt ?? item.created_at ?? item.createdAt);
 
                   return (
                     <tr
@@ -273,6 +308,7 @@ export default function DlqPage() {
                         <button
                           type="button"
                           className="p-1 text-ink"
+                          aria-label={`Select row ${item.id}`}
                         >
                           {isSelected ? (
                             <CheckSquare className="w-4 h-4 text-crimson" />
@@ -282,19 +318,19 @@ export default function DlqPage() {
                         </button>
                       </td>
                       <td className="px-4 mono-data font-semibold text-ink truncate max-w-[180px]">
-                        {item.event_name}
+                        {eventName}
                       </td>
                       <td className="px-4 mono-data text-ink-2 truncate max-w-[240px]">
-                        {item.endpoint_url}
+                        {endpointUrl}
                       </td>
                       <td className="px-4 mono-data text-crimson font-medium">
-                        {item.attempt_count}/{item.max_attempts}
+                        {attemptCount}/{maxAttempts}
                       </td>
                       <td className="px-4 mono-data text-crimson truncate max-w-[220px]">
-                        {item.last_error || `HTTP ${item.last_status_code}`}
+                        {lastError}
                       </td>
                       <td className="px-4 mono-data text-ink-3 type-micro whitespace-nowrap">
-                        {new Date(item.updated_at).toISOString().substring(0, 19).replace("T", " ")}
+                        {failedAt}
                       </td>
                       <td
                         className="px-4 text-right whitespace-nowrap"
@@ -335,7 +371,7 @@ export default function DlqPage() {
         </div>
       </div>
 
-      {/* Floating Bulk Action Bar (when rows selected) */}
+      {/* Floating Bulk Action Bar */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 bg-elevated border border-hairline-strong px-4 py-3 flex items-center gap-6 shadow-none">
           <div className="flex items-center gap-2 type-micro text-ink">
