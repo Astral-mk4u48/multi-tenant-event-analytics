@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -95,12 +96,18 @@ export default function LoginPage() {
     <div className="min-h-screen w-full flex items-center justify-center bg-canvas p-4 text-ink">
       <div className="w-full max-w-[400px] border border-hairline bg-surface p-8">
         <div className="mb-6">
-          <div className="flex items-center gap-2">
-            <span className="h-4 w-4 bg-accent" />
-            <span className="font-mono text-sm font-semibold tracking-wider text-ink">
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/logo.svg"
+              alt="EventPulse Logo"
+              width={16}
+              height={16}
+              className="w-4 h-4 rounded-sm"
+            />
+            <span className="font-mono text-sm font-semibold tracking-wider text-ink uppercase">
               EVENTPULSE
             </span>
-          </div>
+          </Link>
           <h1 className="mt-4 text-lg font-semibold text-ink">Sign in to workspace</h1>
           <p className="mt-1 text-xs text-ink-2">
             Enter your credentials to access your tenant dashboard
@@ -204,11 +211,16 @@ export default function LoginPage() {
           {demoLoading ? "Loading sandbox..." : "Explore Demo Workspace"}
         </Button>
 
-        <div className="mt-6 text-center text-xs text-ink-2">
+        <div className="mt-6 text-center text-xs text-ink-2 border-t border-hairline-subtle pt-4">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-accent hover:underline">
             Sign up
           </Link>
+          <div className="mt-3 text-[11px] text-ink-3">
+            <Link href="/privacy" className="hover:text-ink underline">Privacy</Link>
+            {" "}•{" "}
+            <Link href="/terms" className="hover:text-ink underline">Terms</Link>
+          </div>
         </div>
       </div>
 
