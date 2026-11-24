@@ -8,11 +8,13 @@ import { DrawerProvider } from "../drawer/DrawerContext";
 import { PayloadDrawer } from "../drawer/PayloadDrawer";
 import { CommandPalette } from "../modals/CommandPalette";
 import { SendTestEventModal } from "../modals/SendTestEventModal";
+import { ShortcutsHelpModal } from "../modals/ShortcutsHelpModal";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isTestEventOpen, setIsTestEventOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   useEffect(() => {
     let lastKey = "";
@@ -24,6 +26,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      if (e.key === "?" && !isInput) {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
         return;
       }
 
@@ -91,6 +99,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <SendTestEventModal
           isOpen={isTestEventOpen}
           onClose={() => setIsTestEventOpen(false)}
+        />
+
+        <ShortcutsHelpModal
+          isOpen={isShortcutsOpen}
+          onClose={() => setIsShortcutsOpen(false)}
         />
       </div>
     </DrawerProvider>
