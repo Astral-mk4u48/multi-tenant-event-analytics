@@ -66,7 +66,7 @@ export default function ApiKeysPage() {
       const res = await fetch("/api/v1/keys");
       if (res.ok) {
         const json = await res.json();
-        setKeys(json.data || []);
+        setKeys(json.data || json.keys || json.items || []);
       }
     } catch (err) {
       console.error("Failed to load keys", err);
@@ -81,7 +81,7 @@ export default function ApiKeysPage() {
       const res = await fetch("/api/v1/team");
       if (res.ok) {
         const json = await res.json();
-        setMembers(json.data || []);
+        setMembers(json.data || json.members || json.items || []);
       }
     } catch (err) {
       console.error("Failed to load team", err);
@@ -123,7 +123,7 @@ export default function ApiKeysPage() {
 
       // Trigger Key Reveal Modal
       setNewlyCreatedKey({
-        key: json.plaintext_key,
+        key: json.rawKey || json.plaintext_key || "",
         name: json.name,
         prefix: json.prefix,
       });

@@ -10,14 +10,10 @@ export const dynamic = "force-dynamic";
 
 const inviteMemberSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).max(64),
+  name: z.string().min(1).max(64).optional(),
   role: z.enum(["OWNER", "ADMIN", "VIEWER"]),
 });
 
-/**
- * GET /api/v1/team
- * List team members and their roles for the current organization.
- */
 export async function GET(req: NextRequest) {
   const auth = await resolveAuth(req);
   if (!auth) {
@@ -41,32 +37,35 @@ export async function GET(req: NextRequest) {
   try {
     const res = await migrationPool.query(query, [auth.orgId]);
     const members = res.rows.map((m) => ({
+      id: `${auth.orgId}_${m.user_id}`,
       user_id: m.user_id,
+      userId: m.user_id,
       email: m.email,
       name: m.name,
       role: m.role,
-      joined_at: m.joined_at.toISOString(),
-      last_active_at: m.last_active_at ? m.last_active_at.toISOString() : null,
+      joined_at: new Date(m.joined_at).toISOString(),
+      created_at: new Date(m.joined_at).toISOString(),
+      last_active_at: m.last_active_at ? new Date(m.last_active_at).toISOString() : null,
     }));
 
-    return NextResponse.json({ members });
+    return NextResponse.json({
+      data: members,
+      members,
+      items: members,
+    });
   } catch (err) {
     logger.error({ err, orgId: auth.orgId }, "Failed to fetch team members");
     return NextResponse.json({ error: "Failed to fetch team members" }, { status: 500 });
   }
 }
 
-/**
- * POST /api/v1/team
- * Invites / adds a member to the organization.
- */
 export async function POST(req: NextRequest) {
   const auth = await resolveAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!checkCapability(auth, "manage_team")) {
+  if (auth.role === "VIEWER" || !checkCapability(auth, "manage_team")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -82,12 +81,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Validation failed", details: parsed.error.format() }, { status: 422 });
   }
 
-  const { email, name, role } = parsed.data;
+  const { email, role } = parsed.data;
+  const name = parsed.data.name || email.split("@")[0];
 
-  // Check if current user can invite this role (ADMIN cannot invite OWNER)
   if (!canInviteRole(auth.role, role)) {
     return NextResponse.json(
-      { error: "Forbidden: ADMINs cannot invite an OWNER" },
+      { error: "Forbidden: Cannot invite a role higher or equal to OWNER" },
       { status: 403 }
     );
   }
@@ -97,49 +96,54 @@ export async function POST(req: NextRequest) {
     try {
       await client.query("BEGIN");
 
-      // 1. Find or create user
+      let userRes = await client.query(
+        `SELECT id, email, name FROM users WHERE email = $1 LIMIT 1`,
+        [email]
+      );
+
       let userId: string;
-      const userRes = await client.query("SELECT id FROM users WHERE email = $1", [email]);
-      if (userRes.rows.length > 0) {
-        userId = userRes.rows[0].id;
-      } else {
+      if (userRes.rows.length === 0) {
         userId = crypto.randomUUID();
         await client.query(
-          "INSERT INTO users (id, email, name, created_at) VALUES ($1, $2, $3, NOW())",
+          `INSERT INTO users (id, email, name, created_at)
+           VALUES ($1, $2, $3, NOW())`,
           [userId, email, name]
         );
+      } else {
+        userId = userRes.rows[0].id;
       }
 
-      // 2. Add to org_memberships
       await client.query(
-        `INSERT INTO org_memberships (user_id, org_id, role, joined_at)
+        `INSERT INTO org_memberships (org_id, user_id, role, joined_at)
          VALUES ($1, $2, $3, NOW())
          ON CONFLICT (org_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
-        [userId, auth.orgId, role]
+        [auth.orgId, userId, role]
       );
 
       await client.query("COMMIT");
 
       return NextResponse.json(
         {
+          success: true,
           member: {
-            user_id: userId,
+            id: `${auth.orgId}_${userId}`,
+            userId,
             email,
             name,
             role,
-            joined_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
           },
         },
         { status: 201 }
       );
-    } catch (err) {
+    } catch (txErr) {
       await client.query("ROLLBACK");
-      throw err;
+      throw txErr;
     } finally {
       client.release();
     }
-  } catch (err) {
-    logger.error({ err, email, orgId: auth.orgId }, "Failed to add team member");
-    return NextResponse.json({ error: "Failed to add member" }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to invite member";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

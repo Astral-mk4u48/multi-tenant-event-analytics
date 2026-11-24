@@ -1,6 +1,6 @@
 {
   "name": "multi-tenant-event-analytics",
-  "version": "1.0.0",
+  "version": "2.2.0",
   "description": "Multi-Tenant Event Analytics & Webhook Platform",
   "author": "Pavan <Pavan.sankiliraj@gmail.com>",
   "license": "MIT",
