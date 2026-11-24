@@ -156,7 +156,6 @@ export default function OverviewPage() {
         setRecentFailures(failuresJson.data || []);
       }
     } catch (err) {
-      console.error("Failed to load overview data", err);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -177,7 +176,6 @@ export default function OverviewPage() {
         fetchOverview();
       }
     } catch (err) {
-      console.error("Replay failed", err);
     } finally {
       setReplayingId(null);
     }
@@ -350,13 +348,13 @@ export default function OverviewPage() {
               >
                 <defs>
                   <linearGradient id="ingestGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E11D48" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#E11D48" stopOpacity={0.0} />
+                    <stop offset="0%" stopColor="#E11D48" stopOpacity={0.16} />
+                    <stop offset="100%" stopColor="#E11D48" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--border-hairline-subtle)"
+                  strokeDasharray="2 2"
+                  stroke="#1E1E24"
                   vertical={false}
                 />
                 <XAxis
@@ -367,20 +365,20 @@ export default function OverviewPage() {
                       ? `${d.getUTCMinutes()}m`
                       : `${d.getUTCHours()}:00`;
                   }}
-                  stroke="var(--text-ink-3)"
-                  tick={{ fill: "var(--text-ink-3)", fontSize: 10, fontFamily: "var(--font-geist-mono)" }}
-                  axisLine={{ stroke: "var(--border-hairline-subtle)" }}
+                  tick={{ fill: "#63636E", fontSize: 11, fontFamily: "var(--font-geist-mono)" }}
+                  axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  stroke="var(--text-ink-3)"
-                  tick={{ fill: "var(--text-ink-3)", fontSize: 10, fontFamily: "var(--font-geist-mono)" }}
+                  tick={{ fill: "#63636E", fontSize: 11, fontFamily: "var(--font-geist-mono)" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => formatNumber(v)}
+                  width={40}
                 />
                 <Tooltip
                   isAnimationActive={false}
+                  cursor={{ stroke: "#3F3F4A", strokeWidth: 1 }}
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       const item = payload[0].payload;
@@ -411,10 +409,12 @@ export default function OverviewPage() {
                   type="monotone"
                   dataKey="ingested"
                   stroke="#E11D48"
-                  strokeWidth={2}
+                  strokeWidth={1.5}
                   fillOpacity={1}
                   fill="url(#ingestGradient)"
                   isAnimationActive={false}
+                  dot={false}
+                  activeDot={{ r: 3, fill: "#E11D48", stroke: "#0F0F12", strokeWidth: 1 }}
                 />
                 <Line
                   type="monotone"

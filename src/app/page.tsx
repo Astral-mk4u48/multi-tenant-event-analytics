@@ -14,31 +14,28 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-[#F1F5F9] flex flex-col justify-between">
+    <div className="min-h-screen bg-canvas text-ink flex flex-col justify-between">
       {/* Top Header */}
-      <header className="border-b border-[#1E1E24] px-8 h-14 flex items-center justify-between max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-3">
-          <span className="h-3.5 w-3.5 bg-[#E11D48]" />
-          <span className="font-mono text-sm font-semibold tracking-wider text-[#F1F5F9]">
+      <header className="border-b border-hairline-subtle px-8 h-14 flex items-center justify-between max-w-7xl mx-auto w-full">
+        <div className="flex items-center gap-2.5">
+          <span className="h-3.5 w-3.5 bg-accent" />
+          <span className="font-mono text-sm font-semibold tracking-wider text-ink">
             EVENTPULSE
-          </span>
-          <span className="text-[10px] font-mono text-[#94A3B8] px-1.5 py-0.5 border border-[#1E1E24] bg-[#0F0F12]">
-            v2.2.0
           </span>
         </div>
 
         <div className="flex items-center gap-4">
           <Link
             href="/login"
-            className="text-xs text-[#94A3B8] hover:text-[#F1F5F9] transition-colors font-medium"
+            className="text-xs text-ink-2 hover:text-ink transition-colors duration-150 font-medium"
           >
             Sign In
           </Link>
           <Link
             href="/signup"
-            className="text-xs font-medium text-white bg-[#E11D48] px-3.5 py-1.5 rounded-sm hover:bg-[#F43F5E] transition-colors"
+            className="text-xs font-medium text-white bg-accent px-3.5 py-1.5 rounded-sm hover:bg-accent-hover transition-colors duration-150"
           >
-            Create Free Workspace
+            Create Workspace
           </Link>
         </div>
       </header>
@@ -46,16 +43,16 @@ export default async function HomePage() {
       {/* Main Architectural Hero */}
       <main className="max-w-7xl mx-auto px-8 py-16 flex-1 flex flex-col justify-center w-full">
         <div className="max-w-3xl space-y-6">
-          <div className="inline-flex items-center gap-2 border border-[#1E1E24] bg-[#0F0F12] px-3 py-1 font-mono text-xs text-[#94A3B8]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
-            MULTI-TENANT INGESTION & OUTBOUND WEBHOOK DELIVERY
+          <div className="inline-flex items-center gap-2 border border-hairline-subtle bg-surface px-3 py-1 font-mono text-xs text-ink-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+            MULTI-TENANT INGESTION &amp; OUTBOUND WEBHOOK DELIVERY
           </div>
 
-          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-[#F1F5F9] leading-tight">
+          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-ink leading-tight">
             High-velocity event telemetry and guaranteed webhook execution.
           </h1>
 
-          <p className="text-sm text-[#94A3B8] leading-relaxed max-w-2xl">
+          <p className="text-sm text-ink-2 leading-relaxed max-w-2xl">
             Built for enterprise multi-tenancy with PostgreSQL Row Level Security (RLS),
             sliding-window rate limiting, HMAC-SHA256 delivery signing, automated SSRF filtering,
             and BullMQ dead-letter retry queues.
@@ -64,41 +61,41 @@ export default async function HomePage() {
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
               href="/signup"
-              className="text-xs font-semibold text-white bg-[#E11D48] px-5 py-2.5 rounded-sm hover:bg-[#F43F5E] transition-colors"
+              className="text-xs font-semibold text-white bg-accent px-5 py-2.5 rounded-sm hover:bg-accent-hover transition-colors duration-150"
             >
-              Create Free Workspace
+              Create Workspace
             </Link>
             <Link
               href="/login"
-              className="text-xs font-medium text-[#F1F5F9] border border-[#1E1E24] bg-[#0F0F12] px-5 py-2.5 rounded-sm hover:bg-[#18181B] transition-colors"
+              className="text-xs font-medium text-ink border border-hairline bg-surface px-5 py-2.5 rounded-sm hover:bg-elevated transition-colors duration-150"
             >
-              Launch Live Demo
+              Explore Demo Workspace
             </Link>
           </div>
         </div>
 
-        {/* Architecture Spec Grid */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#1E1E24] pt-8">
-          <div className="border border-[#1E1E24] bg-[#0F0F12] p-5">
-            <div className="font-mono text-xs text-[#E11D48] font-semibold">01 / INGESTION</div>
-            <h3 className="mt-2 text-sm font-semibold text-[#F1F5F9]">Sliding-Window Pipeline</h3>
-            <p className="mt-1.5 text-xs text-[#94A3B8] leading-relaxed">
+        {/* Architectural Features */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-hairline-subtle pt-8">
+          <div className="border border-hairline-subtle bg-surface p-5">
+            <div className="font-mono text-xs text-accent font-semibold tracking-wider">01 / INGESTION</div>
+            <h3 className="mt-2 text-sm font-semibold text-ink">Sliding-Window Pipeline</h3>
+            <p className="mt-1.5 text-xs text-ink-2 leading-relaxed">
               Redis Lua atomic rate limiting with BullMQ micro-batch buffering delivering sub-15ms p99 ingestion latency.
             </p>
           </div>
 
-          <div className="border border-[#1E1E24] bg-[#0F0F12] p-5">
-            <div className="font-mono text-xs text-[#E11D48] font-semibold">02 / OUTBOUND ENGINE</div>
-            <h3 className="mt-2 text-sm font-semibold text-[#F1F5F9]">HMAC-SHA256 & SSRF Shield</h3>
-            <p className="mt-1.5 text-xs text-[#94A3B8] leading-relaxed">
+          <div className="border border-hairline-subtle bg-surface p-5">
+            <div className="font-mono text-xs text-accent font-semibold tracking-wider">02 / OUTBOUND ENGINE</div>
+            <h3 className="mt-2 text-sm font-semibold text-ink">HMAC-SHA256 &amp; SSRF Shield</h3>
+            <p className="mt-1.5 text-xs text-ink-2 leading-relaxed">
               Cryptographic delivery signatures, RFC 1918 loopback / link-local IP filtering, and 5-step exponential backoff.
             </p>
           </div>
 
-          <div className="border border-[#1E1E24] bg-[#0F0F12] p-5">
-            <div className="font-mono text-xs text-[#E11D48] font-semibold">03 / ISOLATION</div>
-            <h3 className="mt-2 text-sm font-semibold text-[#F1F5F9]">PostgreSQL Row Level Security</h3>
-            <p className="mt-1.5 text-xs text-[#94A3B8] leading-relaxed">
+          <div className="border border-hairline-subtle bg-surface p-5">
+            <div className="font-mono text-xs text-accent font-semibold tracking-wider">03 / ISOLATION</div>
+            <h3 className="mt-2 text-sm font-semibold text-ink">PostgreSQL Row Level Security</h3>
+            <p className="mt-1.5 text-xs text-ink-2 leading-relaxed">
               Strict multi-tenant cryptographic partition isolation enforced directly at the database engine tier.
             </p>
           </div>
@@ -106,9 +103,12 @@ export default async function HomePage() {
       </main>
 
       {/* Operational Footer */}
-      <footer className="border-t border-[#1E1E24] px-8 h-12 flex items-center justify-between max-w-7xl mx-auto w-full text-[11px] font-mono text-[#94A3B8]">
-        <div>Pavan (@Astral-mk4u48)</div>
-        <div>OPERATIONAL · ALL SYSTEMS NORMAL</div>
+      <footer className="border-t border-hairline-subtle px-8 h-12 flex items-center justify-between max-w-7xl mx-auto w-full text-[11px] font-mono text-ink-3">
+        <div className="text-ink-2">EventPulse</div>
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+          <span>All systems operational</span>
+        </div>
       </footer>
     </div>
   );

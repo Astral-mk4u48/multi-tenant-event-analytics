@@ -78,7 +78,6 @@ export default function LiveTailPage() {
           setUnreadCount((c) => c + 1);
         }
       } catch (e) {
-        console.error("Failed to parse SSE frame", e);
       }
     };
 

@@ -35,7 +35,6 @@ export default function EventsPage() {
         setEvents(json.data || []);
       }
     } catch (err) {
-      console.error("Failed to load events", err);
     } finally {
       setLoading(false);
     }

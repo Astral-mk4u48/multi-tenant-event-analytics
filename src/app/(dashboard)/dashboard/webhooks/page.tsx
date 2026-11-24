@@ -91,7 +91,6 @@ export default function WebhooksPage() {
         setEndpoints(json.data || []);
       }
     } catch (e) {
-      console.error("Failed to load webhooks", e);
     } finally {
       setLoadingEndpoints(false);
     }
@@ -120,7 +119,6 @@ export default function WebhooksPage() {
         setPrevCursor(json.pagination?.prev_cursor || null);
       }
     } catch (e) {
-      console.error("Failed to load deliveries", e);
     } finally {
       setLoadingDeliveries(false);
     }
@@ -171,7 +169,6 @@ export default function WebhooksPage() {
         );
       }
     } catch (err) {
-      console.error("Failed to toggle webhook", err);
     }
   };
 
@@ -199,7 +196,6 @@ export default function WebhooksPage() {
         }));
       }
     } catch (err) {
-      console.error("Failed to reveal secret", err);
     }
   };
 
@@ -261,7 +257,6 @@ export default function WebhooksPage() {
         setEndpoints((prev) => prev.filter((e) => e.id !== endpointId));
       }
     } catch (err) {
-      console.error("Failed to delete webhook", err);
     }
   };
 
@@ -276,7 +271,6 @@ export default function WebhooksPage() {
         await fetchEndpoints();
       }
     } catch (err) {
-      console.error("Failed to resume endpoint", err);
     } finally {
       setResumingId(null);
     }
@@ -293,7 +287,6 @@ export default function WebhooksPage() {
         fetchDeliveries(currentCursor);
       }
     } catch (err) {
-      console.error("Replay failed", err);
     } finally {
       setReplayingId(null);
     }

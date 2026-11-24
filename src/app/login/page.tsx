@@ -64,30 +64,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#09090B] p-4 text-[#F1F5F9]">
-      <div className="w-full max-w-[400px] rounded-md border border-[#1E1E24] bg-[#0F0F12] p-8 shadow-2xl">
+    <div className="min-h-screen w-full flex items-center justify-center bg-canvas p-4 text-ink">
+      <div className="w-full max-w-[400px] border border-hairline bg-surface p-8">
         <div className="mb-6">
           <div className="flex items-center gap-2">
-            <span className="h-4 w-4 bg-[#E11D48]" />
-            <span className="font-mono text-sm font-semibold tracking-wider text-[#F1F5F9]">
+            <span className="h-4 w-4 bg-accent" />
+            <span className="font-mono text-sm font-semibold tracking-wider text-ink">
               EVENTPULSE
             </span>
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-[#F1F5F9]">Sign in to Workspace</h1>
-          <p className="mt-1 text-xs text-[#94A3B8]">
-            Enter your credentials to access your tenant telemetry
+          <h1 className="mt-4 text-lg font-semibold text-ink">Sign in to workspace</h1>
+          <p className="mt-1 text-xs text-ink-2">
+            Enter your credentials to access your tenant dashboard
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 rounded border border-[#E11D48]/30 bg-[#E11D48]/10 p-3 text-xs text-[#F43F5E]">
+          <div className="mb-4 border border-accent-border bg-accent-subtle p-3 text-xs text-accent">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSignIn} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Work Email</label>
+            <label className="text-xs font-medium text-ink-2">Work Email</label>
             <Input
               type="email"
               required
@@ -99,7 +99,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Password</label>
+            <label className="text-xs font-medium text-ink-2">Password</label>
             <Input
               type="password"
               required
@@ -121,11 +121,11 @@ export default function LoginPage() {
         </form>
 
         <div className="my-6 flex items-center gap-3">
-          <div className="h-[1px] flex-1 bg-[#1E1E24]" />
-          <span className="font-mono text-[10px] text-[#94A3B8] uppercase tracking-wider">
+          <div className="h-[1px] flex-1 bg-hairline-subtle" />
+          <span className="font-mono text-[10px] text-ink-3 uppercase tracking-wider">
             OR
           </span>
-          <div className="h-[1px] flex-1 bg-[#1E1E24]" />
+          <div className="h-[1px] flex-1 bg-hairline-subtle" />
         </div>
 
         <Button
@@ -135,12 +135,12 @@ export default function LoginPage() {
           disabled={demoLoading}
           className="w-full justify-center"
         >
-          {demoLoading ? "Initializing Sandbox..." : "Try Demo Workspace"}
+          {demoLoading ? "Loading sandbox..." : "Explore Demo Workspace"}
         </Button>
 
-        <div className="mt-6 text-center text-xs text-[#94A3B8]">
+        <div className="mt-6 text-center text-xs text-ink-2">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-[#E11D48] hover:underline">
+          <Link href="/signup" className="text-accent hover:underline">
             Sign up
           </Link>
         </div>

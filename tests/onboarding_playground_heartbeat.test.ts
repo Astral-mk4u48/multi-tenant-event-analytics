@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { redis } from "@/server/redis";
 import { GET as healthCheck } from "@/app/api/healthz/route";
 import { POST as testDispatchRoute } from "@/app/api/v1/events/test-dispatch/route";
@@ -50,10 +50,11 @@ describe("Milestone D: Onboarding Playground, Test Dispatch, and Worker Heartbea
 
   describe("Worker Heartbeat Signals & Healthz Endpoint", () => {
     it("reports inactive worker state and 503 when heartbeats are missing", async () => {
-      await redis.del("worker:heartbeat:ingest");
-      await redis.del("worker:heartbeat:webhook");
+      const existsSpy = vi.spyOn(redis, "exists").mockResolvedValue(0 as any);
 
       const res = await healthCheck();
+      existsSpy.mockRestore();
+
       expect(res.status).toBe(503);
       const json = await res.json();
       expect(json.status).toBe("degraded");

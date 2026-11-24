@@ -97,41 +97,41 @@ func VerifyWebhook(payload, signatureHeader, secret string) bool {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
-      <div className="bg-[#0F0F12] border border-[#1E1E24] max-w-2xl w-full p-6 space-y-4 rounded-md shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#1E1E24] pb-3">
+    <div className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-black/60">
+      <div className="bg-surface border border-hairline max-w-2xl w-full p-6 space-y-4 rounded-md">
+        <div className="flex items-center justify-between border-b border-hairline-subtle pb-3">
           <div className="flex items-center gap-2">
-            <Code2 className="w-5 h-5 text-[#E11D48]" />
-            <h3 className="text-sm font-semibold text-[#F1F5F9]">
+            <Code2 className="w-5 h-5 text-accent" />
+            <h3 className="type-section text-ink font-semibold">
               Webhook Signature Verification
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="text-xs text-[#94A3B8] hover:text-[#F1F5F9]"
+            className="text-ink-3 hover:text-ink transition-colors p-1"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-xs text-[#94A3B8]">
+        <p className="type-body text-ink-2">
           Every outbound delivery includes a timestamp and HMAC-SHA256 signature in the{" "}
-          <code className="text-[#F1F5F9] bg-[#18181B] px-1 py-0.5 rounded">
+          <code className="text-ink bg-inset px-1 py-0.5 rounded-sm mono-data text-xs border border-hairline-subtle">
             X-Webhook-Signature
           </code>{" "}
-          header (e.g. <code className="text-[#E11D48]">t=1732400000,v1=a3b9...</code>).
+          header (e.g. <code className="text-accent mono-data text-xs">t=1732400000,v1=a3b9...</code>).
         </p>
 
         {/* Tab Buttons */}
-        <div className="flex items-center gap-2 border-b border-[#1E1E24] pb-2 text-xs">
+        <div className="flex items-center gap-2 border-b border-hairline-subtle pb-2 text-xs">
           {(["node", "python", "go"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1 font-mono uppercase text-[11px] rounded transition-colors ${
+              className={`px-3 py-1 font-mono uppercase text-[11px] rounded-sm transition-colors duration-150 cursor-pointer ${
                 activeTab === tab
-                  ? "bg-[#E11D48] text-white font-semibold"
-                  : "text-[#94A3B8] hover:text-[#F1F5F9] hover:bg-[#18181B]"
+                  ? "bg-accent text-white font-semibold"
+                  : "text-ink-2 hover:text-ink hover:bg-elevated"
               }`}
             >
               {tab === "node" ? "Node.js" : tab === "python" ? "Python" : "Go"}
@@ -140,25 +140,25 @@ func VerifyWebhook(payload, signatureHeader, secret string) bool {
 
           <button
             onClick={handleCopy}
-            className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-xs text-[#94A3B8] hover:text-white bg-[#18181B] border border-[#1E1E24] rounded"
+            className="ml-auto flex items-center gap-1.5 px-2.5 py-1 text-xs text-ink-2 hover:text-ink bg-elevated border border-hairline rounded-sm transition-colors duration-150 cursor-pointer"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-[#10B981]" />
-                <span className="text-[#10B981]">Copied</span>
+                <Check className="w-3.5 h-3.5 text-status-success" />
+                <span className="text-status-success mono-data">Copied</span>
               </>
             ) : (
               <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Code</span>
+                <Copy className="w-3.5 h-3.5 text-ink-3" />
+                <span className="mono-data">Copy Code</span>
               </>
             )}
           </button>
         </div>
 
         {/* Code Snippet Box */}
-        <div className="bg-[#18181B] border border-[#1E1E24] p-4 rounded overflow-x-auto">
-          <pre className="font-mono text-[11px] text-[#E2E8F0] leading-relaxed">
+        <div className="bg-inset border border-hairline p-4 rounded-sm overflow-x-auto">
+          <pre className="font-mono text-[11px] text-ink leading-relaxed">
             {currentSnippet}
           </pre>
         </div>

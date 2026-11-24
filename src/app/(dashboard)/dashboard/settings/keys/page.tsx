@@ -69,7 +69,6 @@ export default function ApiKeysPage() {
         setKeys(json.data || json.keys || json.items || []);
       }
     } catch (err) {
-      console.error("Failed to load keys", err);
     } finally {
       setLoadingKeys(false);
     }
@@ -84,7 +83,6 @@ export default function ApiKeysPage() {
         setMembers(json.data || json.members || json.items || []);
       }
     } catch (err) {
-      console.error("Failed to load team", err);
     } finally {
       setLoadingMembers(false);
     }
@@ -151,7 +149,6 @@ export default function ApiKeysPage() {
         setKeys((prev) => prev.filter((k) => k.id !== id));
       }
     } catch (err) {
-      console.error("Revoke failed", err);
     } finally {
       setRevokingId(null);
     }

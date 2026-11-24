@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Multi-Tenant Event Analytics & Webhook Platform",
-  description: "Lightweight event analytics with reliable outbound webhook delivery",
+  title: "EventPulse — Event Analytics & Webhook Delivery",
+  description: "High-velocity event ingestion and cryptographically signed outbound webhook delivery for engineering teams.",
 };
 
 export default function RootLayout({

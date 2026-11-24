@@ -16,7 +16,7 @@ export function QuickstartChecklist({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkMilestones() {
+    async function checkSetupStatus() {
       try {
         const [keysRes, epsRes, eventsRes] = await Promise.all([
           fetch("/api/v1/keys"),
@@ -38,31 +38,33 @@ export function QuickstartChecklist({
           setHasEvents(count > 0);
         }
       } catch {
-        // Fallback
+        // Silently ignore — not critical
       } finally {
         setLoading(false);
       }
     }
 
-    checkMilestones();
+    checkSetupStatus();
   }, []);
 
-  // Hide banner once the organization has ingested its first event
+  // Dismiss banner once the workspace has ingested its first event
   if (loading || hasEvents) return null;
 
+  const completedCount = [hasKeys, hasEndpoints, hasEvents].filter(Boolean).length;
+
   return (
-    <div className="rounded-md border border-[#1E1E24] bg-[#0F0F12] p-6 mb-6">
+    <div className="border border-hairline-subtle bg-surface p-6 mb-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-mono text-xs font-semibold text-[#E11D48] tracking-wider uppercase">
-            Quickstart Onboarding Checklist
+          <div className="font-mono text-xs font-semibold text-ink-3 tracking-wider uppercase">
+            Setup
           </div>
-          <h2 className="text-base font-semibold text-[#F1F5F9] mt-1">
-            Configure your workspace in 3 simple steps
+          <h2 className="text-base font-semibold text-ink mt-1">
+            Get your workspace ready
           </h2>
         </div>
-        <div className="text-xs font-mono text-[#94A3B8]">
-          {[hasKeys, hasEndpoints, hasEvents].filter(Boolean).length} / 3 Completed
+        <div className="text-xs font-mono text-ink-3">
+          {completedCount} / 3
         </div>
       </div>
 
@@ -70,75 +72,75 @@ export function QuickstartChecklist({
         {/* Step 1: Ingestion Key */}
         <div
           onClick={() => router.push("/dashboard/settings/keys")}
-          className={`p-4 rounded border cursor-pointer transition-all ${
+          className={`p-4 border cursor-pointer transition-colors duration-150 ${
             hasKeys
-              ? "border-[#10B981]/40 bg-[#10B981]/5"
-              : "border-[#1E1E24] bg-[#18181B] hover:border-[#E11D48]/50"
+              ? "border-status-success/40 bg-status-success/5"
+              : "border-hairline-subtle bg-elevated hover:border-accent/40"
           }`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Key className={`w-4 h-4 ${hasKeys ? "text-[#10B981]" : "text-[#E11D48]"}`} />
-              <span className="text-xs font-semibold text-[#F1F5F9]">1. Create Ingestion Key</span>
+              <Key className={`w-4 h-4 ${hasKeys ? "text-status-success" : "text-accent"}`} />
+              <span className="text-xs font-semibold text-ink">Create ingestion key</span>
             </div>
             {hasKeys ? (
-              <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+              <CheckCircle2 className="w-4 h-4 text-status-success" />
             ) : (
-              <ArrowRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+              <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
             )}
           </div>
-          <p className="text-xs text-[#94A3B8] mt-2">
-            Generate a scoped `pk_live_...` key to authorize high-throughput event ingestion.
+          <p className="text-xs text-ink-2 mt-2 leading-relaxed">
+            Generate a scoped API key to authorize event ingestion from your services.
           </p>
         </div>
 
         {/* Step 2: Register Endpoint */}
         <div
           onClick={() => router.push("/dashboard/webhooks")}
-          className={`p-4 rounded border cursor-pointer transition-all ${
+          className={`p-4 border cursor-pointer transition-colors duration-150 ${
             hasEndpoints
-              ? "border-[#10B981]/40 bg-[#10B981]/5"
-              : "border-[#1E1E24] bg-[#18181B] hover:border-[#E11D48]/50"
+              ? "border-status-success/40 bg-status-success/5"
+              : "border-hairline-subtle bg-elevated hover:border-accent/40"
           }`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Webhook className={`w-4 h-4 ${hasEndpoints ? "text-[#10B981]" : "text-[#E11D48]"}`} />
-              <span className="text-xs font-semibold text-[#F1F5F9]">2. Register Webhook</span>
+              <Webhook className={`w-4 h-4 ${hasEndpoints ? "text-status-success" : "text-accent"}`} />
+              <span className="text-xs font-semibold text-ink">Register endpoint</span>
             </div>
             {hasEndpoints ? (
-              <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+              <CheckCircle2 className="w-4 h-4 text-status-success" />
             ) : (
-              <ArrowRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+              <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
             )}
           </div>
-          <p className="text-xs text-[#94A3B8] mt-2">
-            Configure destination URL and event filter patterns to receive outbound dispatches.
+          <p className="text-xs text-ink-2 mt-2 leading-relaxed">
+            Configure a destination URL and event filter patterns for outbound delivery.
           </p>
         </div>
 
         {/* Step 3: Send First Event */}
         <div
           onClick={onOpenTestEvent}
-          className={`p-4 rounded border cursor-pointer transition-all ${
+          className={`p-4 border cursor-pointer transition-colors duration-150 ${
             hasEvents
-              ? "border-[#10B981]/40 bg-[#10B981]/5"
-              : "border-[#1E1E24] bg-[#18181B] hover:border-[#E11D48]/50"
+              ? "border-status-success/40 bg-status-success/5"
+              : "border-hairline-subtle bg-elevated hover:border-accent/40"
           }`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Send className={`w-4 h-4 ${hasEvents ? "text-[#10B981]" : "text-[#E11D48]"}`} />
-              <span className="text-xs font-semibold text-[#F1F5F9]">3. Send First Event</span>
+              <Send className={`w-4 h-4 ${hasEvents ? "text-status-success" : "text-accent"}`} />
+              <span className="text-xs font-semibold text-ink">Send a test event</span>
             </div>
             {hasEvents ? (
-              <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+              <CheckCircle2 className="w-4 h-4 text-status-success" />
             ) : (
-              <ArrowRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+              <ArrowRight className="w-3.5 h-3.5 text-ink-3" />
             )}
           </div>
-          <p className="text-xs text-[#94A3B8] mt-2">
-            Dispatch a simulated test payload from the interactive drawer to verify live routing.
+          <p className="text-xs text-ink-2 mt-2 leading-relaxed">
+            Dispatch a test payload from the in-browser drawer to verify live routing.
           </p>
         </div>
       </div>

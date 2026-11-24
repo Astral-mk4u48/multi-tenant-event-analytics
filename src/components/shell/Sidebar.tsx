@@ -48,8 +48,6 @@ export function Sidebar() {
   const [isCreatingOrg, setIsCreatingOrg] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
 
-  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "v2.2.0";
-
   useEffect(() => {
     let active = true;
     async function fetchDlqBadge() {
@@ -195,53 +193,53 @@ export function Sidebar() {
 
           {/* Org Switcher Menu Dropdown */}
           {isSwitcherOpen && (
-            <div className="absolute top-12 left-2 right-2 z-50 bg-[#0F0F12] border border-[#1E1E24] shadow-2xl p-2 rounded-md space-y-2">
-              <div className="type-micro uppercase px-2 text-[#94A3B8] font-mono">
-                Organizations
+            <div className="absolute top-12 left-2 right-2 z-50 bg-surface border border-hairline-subtle p-2 space-y-2">
+              <div className="type-micro uppercase px-2 text-ink-3 font-mono">
+                Workspaces
               </div>
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {orgs.map((o) => (
                   <button
                     key={o.id}
                     onClick={() => handleSwitchOrg(o.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors ${
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors duration-150 ${
                       o.id === currentOrg?.id
-                        ? "bg-[#E11D48]/15 text-[#F1F5F9] font-medium"
-                        : "text-[#94A3B8] hover:bg-[#18181B] hover:text-[#F1F5F9]"
+                        ? "bg-accent-subtle text-ink font-medium"
+                        : "text-ink-2 hover:bg-elevated hover:text-ink"
                     }`}
                   >
                     <div className="truncate text-left">
                       <div className="truncate font-mono">{o.slug}</div>
-                      <div className="text-[10px] text-[#94A3B8]">{o.name}</div>
+                      <div className="text-[10px] text-ink-3">{o.name}</div>
                     </div>
                     {o.id === currentOrg?.id && (
-                      <Check className="w-3.5 h-3.5 text-[#E11D48] shrink-0" />
+                      <Check className="w-3.5 h-3.5 text-accent shrink-0" />
                     )}
                   </button>
                 ))}
               </div>
 
               {isCreatingOrg ? (
-                <form onSubmit={handleCreateOrg} className="border-t border-[#1E1E24] pt-2 space-y-2">
+                <form onSubmit={handleCreateOrg} className="border-t border-hairline-subtle pt-2 space-y-2">
                   <input
                     type="text"
                     required
-                    placeholder="Workspace Name"
+                    placeholder="Workspace name"
                     value={newOrgName}
                     onChange={(e) => setNewOrgName(e.target.value)}
-                    className="w-full bg-[#18181B] border border-[#1E1E24] px-2 py-1 text-xs text-[#F1F5F9] rounded focus:outline-none focus:border-[#E11D48]"
+                    className="w-full bg-elevated border border-hairline-subtle px-2 py-1 text-xs text-ink focus:outline-none focus:border-accent"
                   />
                   <div className="flex gap-2">
                     <button
                       type="submit"
-                      className="flex-1 bg-[#E11D48] text-white text-xs py-1 rounded font-medium hover:bg-[#F43F5E]"
+                      className="flex-1 bg-accent text-white text-xs py-1 rounded-sm font-medium hover:bg-accent-hover transition-colors duration-150"
                     >
                       Create
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsCreatingOrg(false)}
-                      className="px-2 bg-[#18181B] text-[#94A3B8] text-xs py-1 rounded hover:text-white"
+                      className="px-2 bg-elevated text-ink-2 text-xs py-1 rounded-sm hover:text-ink transition-colors duration-150"
                     >
                       Cancel
                     </button>
@@ -250,19 +248,19 @@ export function Sidebar() {
               ) : (
                 <button
                   onClick={() => setIsCreatingOrg(true)}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-[#94A3B8] hover:text-[#F1F5F9] hover:bg-[#18181B] transition-colors border-t border-[#1E1E24]"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-sm text-xs text-ink-2 hover:text-ink hover:bg-elevated transition-colors duration-150 border-t border-hairline-subtle"
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#E11D48]" />
-                  <span>Create Workspace</span>
+                  <Plus className="w-3.5 h-3.5 text-accent" />
+                  <span>New workspace</span>
                 </button>
               )}
 
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-xs text-[#F43F5E] hover:bg-[#E11D48]/10 transition-colors border-t border-[#1E1E24]"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-sm text-xs text-crimson hover:bg-accent-subtle transition-colors duration-150 border-t border-hairline-subtle"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
+                <span>Sign out</span>
               </button>
             </div>
           )}
@@ -314,7 +312,7 @@ export function Sidebar() {
           <span className="status-dot-live" />
           <span className="text-ink-2">API: Operational</span>
         </div>
-        <span>{appVersion}</span>
+        {/* Version tag intentionally omitted — not user-facing */}
       </div>
     </aside>
   );

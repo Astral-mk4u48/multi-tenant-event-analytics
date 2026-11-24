@@ -294,7 +294,7 @@ export function PayloadDrawer() {
                         <td className="w-9 pr-3 text-right text-ink-3 select-none tabular-nums">
                           {idx + 1}
                         </td>
-                        <td className="text-[#E4E4E7] whitespace-pre">
+                        <td className="text-json-string whitespace-pre">
                           {highlightJsonLine(line)}
                         </td>
                       </tr>
@@ -310,7 +310,7 @@ export function PayloadDrawer() {
                   Truncated at 64 KB per outbound defense policy
                 </div>
               )}
-              <div className="bg-inset border border-hairline rounded p-3 font-mono text-[12px] leading-[18px] text-[#E4E4E7] overflow-x-auto scrollbar-dark whitespace-pre-wrap">
+              <div className="bg-inset border border-hairline rounded-sm p-3 font-mono text-[12px] leading-[18px] text-json-string overflow-x-auto scrollbar-dark whitespace-pre-wrap">
                 {detail?.latest_attempt?.response_body || "No response body (connection closed before response)"}
               </div>
             </div>
@@ -383,7 +383,7 @@ function highlightJsonLine(line: string): React.ReactNode {
     let restColored: React.ReactNode = rest;
 
     if (rest.startsWith('"')) {
-      restColored = <span className="text-[#E4E4E7]">{rest}</span>;
+      restColored = <span className="text-json-string">{rest}</span>;
     } else if (rest.match(/^-?\d+(\.\d+)?/)) {
       restColored = <span className="text-accent">{rest}</span>;
     } else if (rest === "true," || rest === "false," || rest === "true" || rest === "false") {

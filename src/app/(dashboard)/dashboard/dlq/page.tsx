@@ -88,7 +88,6 @@ export default function DlqPage() {
         setSelectedIds(new Set());
       }
     } catch (err) {
-      console.error("Failed to load DLQ deliveries", err);
     } finally {
       setLoading(false);
     }
@@ -131,7 +130,6 @@ export default function DlqPage() {
         fetchDlq();
       }
     } catch (err) {
-      console.error("Bulk replay failed", err);
     } finally {
       setIsReplayingBulk(false);
     }
@@ -150,7 +148,6 @@ export default function DlqPage() {
         fetchDlq();
       }
     } catch (err) {
-      console.error("Purge failed", err);
     } finally {
       setIsPurging(false);
     }
@@ -166,7 +163,6 @@ export default function DlqPage() {
         fetchDlq();
       }
     } catch (err) {
-      console.error("Replay failed", err);
     } finally {
       setReplayingSingleId(null);
     }

@@ -73,54 +73,54 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#09090B] p-4 text-[#F1F5F9]">
-      <div className="w-full max-w-[420px] rounded-md border border-[#1E1E24] bg-[#0F0F12] p-8 shadow-2xl">
+    <div className="min-h-screen w-full flex items-center justify-center bg-canvas p-4 text-ink">
+      <div className="w-full max-w-[420px] border border-hairline bg-surface p-8">
         <div className="mb-6">
           <div className="flex items-center gap-2">
-            <span className="h-4 w-4 bg-[#E11D48]" />
-            <span className="font-mono text-sm font-semibold tracking-wider text-[#F1F5F9]">
+            <span className="h-4 w-4 bg-accent" />
+            <span className="font-mono text-sm font-semibold tracking-wider text-ink">
               EVENTPULSE
             </span>
           </div>
-          <h1 className="mt-4 text-lg font-semibold text-[#F1F5F9]">Create Free Workspace</h1>
-          <p className="mt-1 text-xs text-[#94A3B8]">
+          <h1 className="mt-4 text-lg font-semibold text-ink">Create workspace</h1>
+          <p className="mt-1 text-xs text-ink-2">
             Deploy a dedicated multi-tenant event pipeline in seconds
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 rounded border border-[#E11D48]/30 bg-[#E11D48]/10 p-3 text-xs text-[#F43F5E]">
+          <div className="mb-4 border border-accent-border bg-accent-subtle p-3 text-xs text-accent">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Full Name</label>
+            <label className="text-xs font-medium text-ink-2">Full Name</label>
             <Input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Pavan"
+              placeholder="Alex Chen"
               className="mt-1"
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Work Email</label>
+            <label className="text-xs font-medium text-ink-2">Work Email</label>
             <Input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="pavan@company.com"
+              placeholder="you@company.com"
               className="mt-1"
             />
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Password</label>
+            <label className="text-xs font-medium text-ink-2">Password</label>
             <Input
               type="password"
               required
@@ -137,9 +137,9 @@ export default function SignupPage() {
                     className={`h-1 flex-1 rounded-sm ${
                       passwordStrength >= level
                         ? passwordStrength <= 2
-                          ? "bg-[#F59E0B]"
-                          : "bg-[#10B981]"
-                        : "bg-[#1E1E24]"
+                          ? "bg-status-warning"
+                          : "bg-status-success"
+                        : "bg-hairline-subtle"
                     }`}
                   />
                 ))}
@@ -148,7 +148,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#94A3B8]">Organization Name</label>
+            <label className="text-xs font-medium text-ink-2">Organization Name</label>
             <Input
               type="text"
               required
@@ -158,8 +158,8 @@ export default function SignupPage() {
               className="mt-1"
             />
             {orgSlug && (
-              <div className="mt-1 text-[11px] font-mono text-[#94A3B8]">
-                Slug: <span className="text-[#F1F5F9]">{orgSlug}</span>
+              <div className="mt-1 text-[11px] font-mono text-ink-2">
+                Slug: <span className="text-ink">{orgSlug}</span>
               </div>
             )}
           </div>
@@ -174,9 +174,9 @@ export default function SignupPage() {
           </Button>
         </form>
 
-        <div className="mt-6 text-center text-xs text-[#94A3B8]">
+        <div className="mt-6 text-center text-xs text-ink-2">
           Already have an account?{" "}
-          <Link href="/login" className="text-[#E11D48] hover:underline">
+          <Link href="/login" className="text-accent hover:underline">
             Sign in
           </Link>
         </div>

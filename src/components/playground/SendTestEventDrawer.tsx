@@ -42,12 +42,12 @@ export function SendTestEventDrawer({
   }
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#1E1E24] bg-[#0F0F12] p-6 shadow-2xl">
-      <div className="flex items-center justify-between border-b border-[#1E1E24] pb-4">
-        <h3 className="text-sm font-semibold text-[#F1F5F9]">Send Test Event</h3>
+    <div className="fixed inset-y-0 right-0 z-drawer flex w-full max-w-lg flex-col border-l border-hairline bg-surface p-6">
+      <div className="flex items-center justify-between border-b border-hairline-subtle pb-4">
+        <h3 className="type-section text-ink font-semibold">Send Test Event</h3>
         <button
           onClick={onClose}
-          className="text-xs text-[#94A3B8] hover:text-[#F1F5F9]"
+          className="text-xs text-ink-3 hover:text-ink transition-colors p-1"
         >
           Close
         </button>
@@ -55,45 +55,45 @@ export function SendTestEventDrawer({
 
       <div className="mt-4 space-y-4 flex-1 overflow-y-auto">
         <div>
-          <label className="text-xs font-medium text-[#94A3B8]">Event Type</label>
+          <label className="type-micro text-ink-2 uppercase font-medium">Event Type</label>
           <input
             value={eventType}
             onChange={(e) => setEventType(e.target.value)}
-            className="mt-1 w-full rounded border border-[#1E1E24] bg-[#18181B] px-3 py-2 text-xs text-[#F1F5F9] focus:outline-none focus:border-[#E11D48]"
+            className="mt-1 w-full rounded-sm border border-hairline bg-elevated px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent mono-data"
           />
         </div>
 
         <div>
-          <label className="text-xs font-medium text-[#94A3B8]">JSON Payload</label>
+          <label className="type-micro text-ink-2 uppercase font-medium">JSON Payload</label>
           <textarea
             rows={8}
             value={payload}
             onChange={(e) => setPayload(e.target.value)}
-            className="mt-1 w-full rounded border border-[#1E1E24] bg-[#18181B] p-3 font-mono text-xs text-[#F1F5F9] focus:outline-none focus:border-[#E11D48]"
+            className="mt-1 w-full rounded-sm border border-hairline bg-inset p-3 font-mono text-xs text-ink focus:outline-none focus:border-accent"
           />
         </div>
 
         <button
           onClick={handleSend}
           disabled={loading}
-          className="w-full rounded bg-[#E11D48] py-2 text-xs font-medium text-white transition hover:bg-[#F43F5E] disabled:opacity-50 cursor-pointer"
+          className="w-full rounded-sm bg-accent py-2 text-xs font-medium text-white transition-colors duration-150 hover:bg-accent-hover disabled:opacity-50 cursor-pointer"
         >
           {loading ? "Dispatching..." : "Dispatch Event"}
         </button>
 
         {response && (
-          <div className="mt-4 rounded border border-[#1E1E24] bg-[#18181B] p-3">
+          <div className="mt-4 rounded-sm border border-hairline bg-elevated p-3">
             <div className="flex items-center justify-between text-xs font-mono">
               <span
                 className={
-                  response.status === 202 ? "text-emerald-400" : "text-rose-400"
+                  response.status === 202 ? "text-status-success" : "text-status-error"
                 }
               >
                 HTTP {response.status}
               </span>
-              <span className="text-[#94A3B8]">{response.latency} ms</span>
+              <span className="text-ink-3 mono-data">{response.latency} ms</span>
             </div>
-            <pre className="mt-2 overflow-x-auto text-[11px] font-mono text-[#E2E8F0]">
+            <pre className="mt-2 overflow-x-auto text-[11px] font-mono text-ink bg-inset p-2 rounded-xs border border-hairline-subtle">
               {JSON.stringify(response.body, null, 2)}
             </pre>
           </div>
