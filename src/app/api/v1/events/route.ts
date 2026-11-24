@@ -19,9 +19,12 @@ const singleEventSchema = z.object({
     .min(1, "Event name cannot be empty")
     .max(128, "Event name cannot exceed 128 chars")
     .regex(/^[a-z0-9._-]+$/, "Event name must match ^[a-z0-9._-]+$"),
-  data: z.record(z.unknown()),
+  data: z.record(z.unknown()).optional(),
+  payload: z.record(z.unknown()).optional(),
   idempotency_key: z.string().max(128).optional(),
   timestamp: z.string().datetime().optional(),
+}).refine((d) => d.data || d.payload, {
+  message: "Either data or payload must be provided",
 });
 
 const MAX_PAYLOAD_BYTES = 256 * 1024; // 256 KB
@@ -122,7 +125,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { event, data, idempotency_key, timestamp } = validation.data;
+  const { event, idempotency_key, timestamp } = validation.data;
+  const data = validation.data.data || validation.data.payload || {};
 
   // 4. Atomic Redis Lua Sliding-Window Rate Limiter
   const rateLimit = await checkRateLimit(apiKey.orgId, apiKey.rateLimitRpm);
@@ -204,7 +208,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       id: eventId,
+      event_id: eventId,
       queued: true,
+      status: "queued",
     },
     {
       status: 202,

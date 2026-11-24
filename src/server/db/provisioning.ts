@@ -1,6 +1,6 @@
-import { db } from "@/server/db";
+import { migrationDb } from "@/db";
 import { users, organizations, orgMembers } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 export async function provisionNewUserAndOrg(params: {
   userId: string;
@@ -9,7 +9,8 @@ export async function provisionNewUserAndOrg(params: {
   orgName: string;
   orgSlug: string;
 }) {
-  return await db.transaction(async (tx) => {
+  // Use migrationDb to safely bootstrap new tenant records across RLS boundaries
+  return await migrationDb.transaction(async (tx) => {
     // 1. Upsert base user record
     const [userRecord] = await tx
       .insert(users)
@@ -53,7 +54,10 @@ export async function provisionNewUserAndOrg(params: {
       })
       .returning();
 
-    // 3. Associate newly provisioned user as OWNER
+    // 3. Set transaction tenant scope before inserting membership
+    await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgRecord.id}, true)`);
+
+    // 4. Associate newly provisioned user as OWNER
     await tx.insert(orgMembers).values({
       orgId: orgRecord.id,
       userId: userRecord.id,

@@ -57,12 +57,11 @@ export async function GET(req: NextRequest) {
       d.next_retry_at,
       d.created_at,
       d.updated_at,
-      da.error_message as last_error,
       da.response_body
     FROM webhook_deliveries d
     LEFT JOIN LATERAL (
-      SELECT error_message, response_body
-      FROM webhook_delivery_attempts
+      SELECT response_body
+      FROM webhook_attempts
       WHERE delivery_id = d.id
       ORDER BY attempt_number DESC
       LIMIT 1
