@@ -9,6 +9,9 @@ const envSchema = z.object({
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
   INGEST_BATCH_SIZE: z.coerce.number().int().positive().default(100),
   WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  CRON_SECRET: z.string().optional(),
+  DEMO_USER_EMAIL: z.string().optional(),
+  DEMO_USER_PASSWORD: z.string().optional(),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
 
