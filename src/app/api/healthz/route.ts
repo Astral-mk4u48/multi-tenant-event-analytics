@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/db";
+import { db } from "@/server/db";
+import { sql } from "drizzle-orm";
 import { redis } from "@/server/redis";
-import { logger } from "@/server/logger";
 import { redisCircuitBreaker } from "@/server/redis-circuit-breaker";
+import { logger } from "@/server/logger";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const startTime = Date.now();
-  let dbStatus = "ok";
-  let redisStatus = "ok";
-  let isHealthy = true;
+  let dbOk = false;
+  let redisOk = false;
+  let ingestWorkerOk = false;
+  let webhookWorkerOk = false;
 
   const withTimeout = <T>(promise: Promise<T>, ms = 1500): Promise<T> =>
     Promise.race([
@@ -18,56 +19,49 @@ export async function GET() {
       new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Health check timeout")), ms)),
     ]);
 
+  // 1. PostgreSQL Database Ping
   try {
-    await withTimeout(pool.query("SELECT 1"));
-  } catch (err) {
-    dbStatus = "error";
-    isHealthy = false;
-    logger.error({ err }, "Database health check failed");
+    await withTimeout(db.execute(sql`SELECT 1`));
+    dbOk = true;
+  } catch (e) {
+    logger.error({ err: e }, "Database health ping failed");
   }
 
+  // 2. Redis and Worker Heartbeats via Redis Circuit Breaker
   if (redisCircuitBreaker.getState() === "OPEN") {
-    redisStatus = "circuit_open";
-    isHealthy = false;
+    redisOk = false;
   } else {
     try {
-      const pong = await redisCircuitBreaker.execute(() => withTimeout(redis.ping()));
-      if (pong !== "PONG") {
-        redisStatus = "unexpected_response";
-        isHealthy = false;
-      }
-    } catch (err) {
-      redisStatus = "error";
-      isHealthy = false;
-      logger.error({ err }, "Redis health check failed");
+      const ping = await redisCircuitBreaker.execute(() => withTimeout(redis.ping()));
+      redisOk = ping === "PONG";
+
+      const ingestExists = await redisCircuitBreaker.execute(() =>
+        withTimeout(redis.exists("worker:heartbeat:ingest"))
+      );
+      const webhookExists = await redisCircuitBreaker.execute(() =>
+        withTimeout(redis.exists("worker:heartbeat:webhook"))
+      );
+
+      ingestWorkerOk = ingestExists === 1;
+      webhookWorkerOk = webhookExists === 1;
+    } catch (e) {
+      logger.error({ err: e }, "Redis / Worker heartbeat check failed");
     }
   }
 
-  const durationMs = Date.now() - startTime;
-
-  if (!isHealthy) {
-    return NextResponse.json(
-      {
-        status: "unhealthy",
-        durationMs,
-        checks: {
-          database: dbStatus,
-          redis: redisStatus,
-        },
-      },
-      { status: 503 }
-    );
-  }
+  const isHealthy = dbOk && redisOk && ingestWorkerOk && webhookWorkerOk;
 
   return NextResponse.json(
     {
-      status: "healthy",
-      durationMs,
+      status: isHealthy ? "healthy" : "degraded",
+      timestamp: new Date().toISOString(),
       checks: {
-        database: dbStatus,
-        redis: redisStatus,
+        database: dbOk ? "up" : "down",
+        redis: redisCircuitBreaker.getState() === "OPEN" ? "circuit_open" : (redisOk ? "up" : "down"),
+        ingestWorker: ingestWorkerOk ? "active" : "inactive",
+        webhookWorker: webhookWorkerOk ? "active" : "inactive",
       },
     },
-    { status: 200 }
+    { status: isHealthy ? 200 : 503 }
   );
 }

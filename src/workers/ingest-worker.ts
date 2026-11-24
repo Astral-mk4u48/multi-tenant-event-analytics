@@ -26,6 +26,7 @@ interface CachedEndpoint {
 export class IngestBatchWorker {
   private buffer: IngestJobData[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private isFlushing = false;
   private isShuttingDown = false;
   public worker: Worker<IngestJobData>;
@@ -46,17 +47,34 @@ export class IngestBatchWorker {
     );
 
     this.startFlushTimer();
+    this.startHeartbeat();
     if (autoRegisterSignals) {
       this.registerSignalHandlers();
     }
   }
 
   public async stop(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
     await this.worker.close();
+  }
+
+  private startHeartbeat() {
+    const publishPulse = async () => {
+      try {
+        await redis.set("worker:heartbeat:ingest", Date.now().toString(), "EX", 30);
+      } catch (err) {
+        logger.warn({ err }, "Failed to publish ingest worker heartbeat");
+      }
+    };
+    publishPulse();
+    this.heartbeatTimer = setInterval(publishPulse, 15000);
   }
 
   private startFlushTimer() {

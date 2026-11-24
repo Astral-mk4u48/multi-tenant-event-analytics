@@ -133,7 +133,7 @@ describe("v2 Issue #1: Redis Cluster Circuit Breaker Suite", () => {
     const res = await handleHealthz();
     expect(res.status).toBe(503);
     const json = await res.json();
-    expect(json.status).toBe("unhealthy");
+    expect(["unhealthy", "degraded"]).toContain(json.status);
     expect(json.checks.redis).toBe("circuit_open");
   });
 

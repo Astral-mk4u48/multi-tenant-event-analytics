@@ -125,6 +125,7 @@ export async function updateEndpointHealthAndCircuitBreaker(
 
 export class WebhookDeliveryWorker {
   private worker: Worker;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
 
   constructor(autoRegisterSignals = true) {
     this.worker = new Worker<WebhookDeliverJobData>(
@@ -142,9 +143,23 @@ export class WebhookDeliveryWorker {
       logger.error({ err, jobId: job?.id }, "Webhook delivery job processing failed");
     });
 
+    this.startHeartbeat();
+
     if (autoRegisterSignals) {
       this.registerSignalHandlers();
     }
+  }
+
+  private startHeartbeat() {
+    const publishPulse = async () => {
+      try {
+        await redis.set("worker:heartbeat:webhook", Date.now().toString(), "EX", 30);
+      } catch (err) {
+        logger.warn({ err }, "Failed to publish webhook worker heartbeat");
+      }
+    };
+    publishPulse();
+    this.heartbeatTimer = setInterval(publishPulse, 15000);
   }
 
   public async handleJob(job: WebhookDeliverJobData): Promise<void> {
@@ -378,6 +393,10 @@ export class WebhookDeliveryWorker {
   }
 
   public async close(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     await this.worker.close();
   }
 
