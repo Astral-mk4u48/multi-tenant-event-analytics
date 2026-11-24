@@ -24,6 +24,8 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useDrawer } from "@/components/drawer/DrawerContext";
+import { QuickstartChecklist } from "@/components/onboarding/QuickstartChecklist";
+import { SendTestEventDrawer } from "@/components/playground/SendTestEventDrawer";
 
 // Safe localStorage access guarded against strict privacy sandbox exceptions
 function safeGetStorage(key: string): string | null {
@@ -113,6 +115,7 @@ interface DeliveryItem {
 export default function OverviewPage() {
   const { openDrawer } = useDrawer();
   const [isMounted, setIsMounted] = useState(false);
+  const [isTestDrawerOpen, setIsTestDrawerOpen] = useState(false);
   const [range, setRange] = useState<"1h" | "24h" | "7d" | "30d">(() => {
     const saved = safeGetStorage("dashboard_range");
     if (saved === "1h" || saved === "24h" || saved === "7d" || saved === "30d") {
@@ -260,6 +263,9 @@ export default function OverviewPage() {
           </Button>
         </div>
       </div>
+
+      {/* Quickstart Checklist for 0-event organizations */}
+      <QuickstartChecklist onOpenTestEvent={() => setIsTestDrawerOpen(true)} />
 
       {/* 4-Column KPI Strip */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -566,6 +572,11 @@ export default function OverviewPage() {
           </div>
         </div>
       </div>
+
+      <SendTestEventDrawer
+        isOpen={isTestDrawerOpen}
+        onClose={() => setIsTestDrawerOpen(false)}
+      />
     </div>
   );
 }
